@@ -1,0 +1,47 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect, notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { ServiceReportDetail } from "@/components/servis/ServiceReportDetail";
+
+const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
+
+interface Props {
+  params: Promise<{ id: string }>;
+}
+
+export default async function ServisDetailPage({ params }: Props) {
+  const { id } = await params;
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string })?.role;
+  if (!session || !ALLOWED_ROLES.includes(role || "")) redirect("/giris");
+
+  const [report, personnel] = await Promise.all([
+    prisma.serviceReport.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        technician: { include: { user: { select: { firstName: true, lastName: true, email: true } } } },
+        logs: {
+          include: { personnel: { include: { user: { select: { firstName: true, lastName: true } } } } },
+          orderBy: { createdAt: "desc" },
+        },
+        invoices: { select: { id: true, invoiceNumber: true, status: true, total: true } },
+      },
+    }),
+    prisma.personnel.findMany({
+      where: { isActive: true },
+      include: { user: { select: { firstName: true, lastName: true } } },
+    }),
+  ]);
+
+  if (!report) notFound();
+
+  if (role === "TECHNICIAN" && session.user?.email) {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email }, include: { personnel: true } });
+    if (user?.personnel && report.technicianId !== user.personnel.id) redirect("/servis");
+  }
+
+  const canEdit = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(role ?? "");
+  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} />;
+}

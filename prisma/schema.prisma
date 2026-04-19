@@ -1,0 +1,882 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── CATEGORIES (3-level hierarchy) ───────────────────────
+
+model Category {
+  id        String     @id @default(cuid())
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  depth     Int        @default(0)
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  imageUrl  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  translations  CategoryTranslation[]
+  products      ProductCategory[]
+  specTemplates CategorySpecTemplate[]
+
+  @@index([parentId])
+  @@index([depth, sortOrder])
+}
+
+model CategoryTranslation {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  locale     String
+  name       String
+  slug       String
+  description String?
+  metaTitle  String?
+  metaDesc   String?
+
+  @@unique([categoryId, locale])
+  @@unique([slug, locale])
+  @@index([slug])
+}
+
+// ─── BRANDS ───────────────────────────────────────────────
+
+model Brand {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  logoUrl   String?
+  website   String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+// ─── PRODUCTS ─────────────────────────────────────────────
+
+model Product {
+  id                String   @id @default(cuid())
+  sku               String   @unique
+  brandId           String?
+  brand             Brand?   @relation(fields: [brandId], references: [id])
+  price             Decimal  @db.Decimal(10, 2)
+  comparePrice      Decimal? @db.Decimal(10, 2)
+  currency          String   @default("TRY")
+  stock             Int      @default(0)
+  lowStockThreshold Int      @default(3)
+  weight            Decimal? @db.Decimal(8, 2)
+  isActive          Boolean  @default(true)
+  isFeatured        Boolean  @default(false)
+  isNew             Boolean  @default(false)
+  priceOnRequest    Boolean  @default(false)
+  viewCount         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  translations     ProductTranslation[]
+  categories       ProductCategory[]
+  images           ProductImage[]
+  specs            ProductSpec[]
+  orderItems       OrderItem[]
+  reviews          Review[]
+  wishlistItems    WishlistItem[]
+  cartItems        CartItem[]
+  discountProducts DiscountProduct[]
+  variantGroups    ProductVariantGroup[]
+  variants         ProductVariant[]
+  serviceReports   ServiceReport[]
+
+  @@index([brandId])
+  @@index([price])
+  @@index([isActive, isFeatured])
+  @@index([createdAt])
+}
+
+model ProductTranslation {
+  id               String  @id @default(cuid())
+  productId        String
+  product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locale           String
+  name             String
+  slug             String
+  shortDescription String?
+  description      String? @db.Text
+  metaTitle        String?
+  metaDesc         String?
+
+  @@unique([productId, locale])
+  @@unique([slug, locale])
+  @@index([slug])
+}
+
+model ProductCategory {
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  sortOrder Int     @default(0)
+  isPrimary Boolean @default(false)
+
+  @@index([productId, sortOrder])
+}
+
+// ─── PRODUCT VARIANTS ─────────────────────────────────────
+
+model ProductVariantGroup {
+  id        String                 @id @default(cuid())
+  productId String
+  product   Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int                    @default(0)
+  options   ProductVariantOption[]
+
+  @@index([productId])
+}
+
+model ProductVariantOption {
+  id        String                @id @default(cuid())
+  groupId   String
+  group     ProductVariantGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  value     String
+  sortOrder Int                   @default(0)
+  values    ProductVariantValue[]
+
+  @@index([groupId])
+}
+
+model ProductVariant {
+  id        String                @id @default(cuid())
+  productId String
+  product   Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku       String?
+  price     Decimal?              @db.Decimal(10, 2)
+  stock     Int                   @default(0)
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  values    ProductVariantValue[]
+
+  @@index([productId])
+}
+
+model ProductVariantValue {
+  variantId String
+  variant   ProductVariant       @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    ProductVariantOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, optionId])
+}
+
+// ─── TECHNICAL SPECIFICATIONS ─────────────────────────────
+
+model SpecDefinition {
+  id           String  @id @default(cuid())
+  key          String  @unique
+  unit         String?
+  dataType     String  @default("text")
+  sortOrder    Int     @default(0)
+  isFilterable Boolean @default(true)
+
+  translations      SpecDefinitionTranslation[]
+  values            ProductSpec[]
+  categoryTemplates CategorySpecTemplate[]
+}
+
+model SpecDefinitionTranslation {
+  id               String         @id @default(cuid())
+  specDefinitionId String
+  specDefinition   SpecDefinition @relation(fields: [specDefinitionId], references: [id], onDelete: Cascade)
+  locale           String
+  label            String
+
+  @@unique([specDefinitionId, locale])
+}
+
+model CategorySpecTemplate {
+  categoryId       String
+  category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  specDefinitionId String
+  specDefinition   SpecDefinition @relation(fields: [specDefinitionId], references: [id], onDelete: Cascade)
+  isRequired       Boolean        @default(false)
+  sortOrder        Int            @default(0)
+
+  @@id([categoryId, specDefinitionId])
+}
+
+model ProductSpec {
+  id               String         @id @default(cuid())
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  specDefinitionId String
+  specDefinition   SpecDefinition @relation(fields: [specDefinitionId], references: [id], onDelete: Cascade)
+  value            String
+  numericValue     Decimal?       @db.Decimal(10, 3)
+
+  @@unique([productId, specDefinitionId])
+  @@index([specDefinitionId, numericValue])
+}
+
+// ─── USERS & AUTH ─────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  firstName     String?
+  lastName      String?
+  phone         String?
+  role          UserRole  @default(CUSTOMER)
+  isActive      Boolean   @default(true)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts            Account[]
+  sessions            Session[]
+  orders              Order[]
+  reviews             Review[]
+  addresses           Address[]
+  wishlistItems       WishlistItem[]
+  cartItems           CartItem[]
+  abandonedCartEmail  AbandonedCartEmail?
+  erpCustomer         Customer?
+  personnel           Personnel?
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+  TECHNICIAN
+  MANAGER
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Address {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       AddressType @default(DELIVERY)
+  title      String?
+  label      String?
+  firstName  String
+  lastName   String
+  phone      String
+  company    String?
+  taxId      String?
+  taxOffice  String?
+  line1      String
+  line2      String?
+  city       String
+  district   String
+  postalCode String?
+  country    String      @default("Türkiye")
+  isDefault  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  orders Order[]
+
+  @@index([userId, type])
+}
+
+enum AddressType {
+  DELIVERY
+  BILLING
+}
+
+// ─── ORDERS ───────────────────────────────────────────────
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id])
+  addressId     String?
+  address       Address?    @relation(fields: [addressId], references: [id])
+  status        OrderStatus @default(PENDING)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  discountTotal Decimal     @default(0) @db.Decimal(10, 2)
+  shippingCost  Decimal     @default(0) @db.Decimal(10, 2)
+  total         Decimal     @db.Decimal(10, 2)
+  currency         String      @default("TRY")
+  paymentMethod    String      @default("COD")
+  invoiceNumber    String?
+  invoiceUrl       String?
+  notes                 String?
+  customerNote          String?
+  guestEmail            String?
+  addressSnapshot       Json?
+  billingAddressSnapshot Json?
+  billingEmail          String?
+  trackingNumber        String?
+  cargoCompany          String?
+  createdAt        DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  items          OrderItem[]
+  discountId     String?
+  discount       Discount?      @relation(fields: [discountId], references: [id])
+  refundRequests RefundRequest[]
+  invoice        Invoice?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderNumber])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  REFUND_REJECTED
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  variantId   String?
+  variantName String?
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
+// ─── DISCOUNTS ────────────────────────────────────────────
+
+model Discount {
+  id          String       @id @default(cuid())
+  code        String?      @unique
+  type        DiscountType
+  value       Decimal      @db.Decimal(10, 2)
+  minPurchase Decimal?     @db.Decimal(10, 2)
+  maxUses     Int?
+  usedCount   Int          @default(0)
+  startsAt    DateTime
+  endsAt      DateTime?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  products DiscountProduct[]
+  orders   Order[]
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+model DiscountProduct {
+  discountId String
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([discountId, productId])
+}
+
+// ─── REVIEWS & WISHLIST ───────────────────────────────────
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  rating     Int
+  comment    String?  @db.Text
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, userId])
+  @@index([productId, isApproved])
+}
+
+model WishlistItem {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+}
+
+// ─── CART ────────────────────────────────────────────────
+
+model CartItem {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId   String?
+  variantName String?
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+// ─── ABANDONED CART ──────────────────────────────────────
+
+model AbandonedCartEmail {
+  id     String   @id @default(cuid())
+  userId String   @unique
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sentAt DateTime @default(now())
+}
+
+// ─── NEWSLETTER ──────────────────────────────────────────
+
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ─── PAGE VIEWS ──────────────────────────────────────────
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  userAgent String?
+  ip        String?
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+  @@index([sessionId])
+}
+
+// ─── EXCHANGE RATES CACHE ────────────────────────────────
+
+model ExchangeRate {
+  currency  String   @id
+  rate      Decimal  @db.Decimal(10, 4)
+  updatedAt DateTime @updatedAt
+}
+
+model ExchangeRateHistory {
+  id        String   @id @default(cuid())
+  currency  String
+  rate      Decimal  @db.Decimal(10, 4)
+  createdAt DateTime @default(now())
+
+  @@index([currency, createdAt])
+}
+
+// ─── REFUND REQUESTS ──────────────────────────────────────
+
+model RefundRequest {
+  id             String        @id @default(cuid())
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id])
+  userId         String
+  reason         String        @db.Text
+  status         RefundStatus  @default(PENDING)
+  refundAmount   Decimal?      @db.Decimal(10, 2)
+  isPartial      Boolean       @default(false)
+  adminNote      String?       @db.Text
+  cargoCompany   String?
+  returnAddress  String?       @db.Text
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+// ─── SITE SETTINGS ────────────────────────────────────────
+
+model SiteSetting {
+  key   String @id
+  value String @db.Text
+}
+
+// ─── ERP: CUSTOMERS ───────────────────────────────────────
+
+enum CustomerType {
+  INDIVIDUAL // Şahıs
+  CORPORATE  // Kurumsal
+}
+
+model Customer {
+  id          String       @id @default(cuid())
+  type        CustomerType @default(INDIVIDUAL)
+
+  // Şahıs alanları
+  firstName   String?
+  lastName    String?
+  tcNumber    String?
+
+  // Kurumsal alanlar
+  companyName String?
+  taxNumber   String?
+  taxOffice   String?
+
+  // Ortak alanlar
+  email       String?
+  phone       String
+  phone2      String?
+  address     String?      @db.Text
+  city        String?
+  district    String?
+  notes       String?      @db.Text
+
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  userId      String?      @unique
+  user        User?        @relation(fields: [userId], references: [id])
+
+  serviceReports ServiceReport[]
+  invoices       Invoice[]
+
+  @@index([phone])
+  @@index([type])
+  @@index([taxNumber])
+}
+
+// ─── ERP: PERSONNEL ───────────────────────────────────────
+
+enum PersonnelRole {
+  TECHNICIAN
+  FIELD_TECHNICIAN
+  WORKSHOP_TECHNICIAN
+  SUPERVISOR
+  MANAGER
+}
+
+model Personnel {
+  id          String        @id @default(cuid())
+  userId      String        @unique
+  user        User          @relation(fields: [userId], references: [id])
+  role        PersonnelRole @default(TECHNICIAN)
+  department  String?
+  speciality  String?
+  phone       String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  assignedReports ServiceReport[] @relation("AssignedTechnician")
+  serviceLogs     ServiceLog[]
+}
+
+// ─── ERP: SERVICE REPORTS ─────────────────────────────────
+
+enum ServiceStatus {
+  RECEIVED       // Teslim Alındı
+  DIAGNOSING     // Teşhis Yapılıyor
+  WAITING_PARTS  // Parça Bekleniyor
+  IN_REPAIR      // Tamirde
+  QUALITY_CHECK  // Kalite Kontrolde
+  READY          // Teslime Hazır
+  DELIVERED      // Teslim Edildi
+  CANCELLED      // İptal
+  WARRANTY_RETURN // Garanti İadesi
+}
+
+enum ServiceType {
+  WORKSHOP   // Atölye Servisi
+  FIELD      // Saha Servisi
+  WARRANTY   // Garanti Servisi
+  PERIODIC   // Periyodik Bakım
+}
+
+model ServiceReport {
+  id           String        @id @default(cuid())
+  reportNumber String        @unique // SR-2024-001
+
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+
+  // Cihaz / Pompa bilgileri
+  deviceBrand   String?
+  deviceModel   String?
+  deviceSerial  String?
+  deviceYear    Int?
+  devicePower   String?
+  deviceVoltage String?
+  devicePhase   String?
+
+  // E-ticaret ürün bağlantısı (opsiyonel)
+  productId    String?
+  product      Product?      @relation(fields: [productId], references: [id])
+
+  serviceType  ServiceType   @default(WORKSHOP)
+  status       ServiceStatus @default(RECEIVED)
+
+  // Sorun ve çözüm
+  complaint    String        @db.Text
+  diagnosis    String?       @db.Text
+  operations   String?       @db.Text
+  partsUsed    Json?         // [{name, partNo, quantity, unitPrice}]
+
+  // Personel ataması
+  technicianId String?
+  technician   Personnel?    @relation("AssignedTechnician", fields: [technicianId], references: [id])
+
+  // Tarihler
+  receivedAt     DateTime  @default(now())
+  estimatedDate  DateTime?
+  completedAt    DateTime?
+  deliveredAt    DateTime?
+
+  // Garanti
+  isWarranty    Boolean   @default(false)
+  warrantyUntil DateTime?
+
+  // Notlar & ekler
+  internalNotes String?   @db.Text
+  customerNote  String?   @db.Text
+  photos        Json?     // [url, ...]
+
+  // İmzalar (Base64 dataURL)
+  customerSignature   String?  @db.Text
+  technicianSignature String?  @db.Text
+
+  // Maliyet
+  laborCost     Decimal?  @db.Decimal(10, 2)
+  partsCost     Decimal?  @db.Decimal(10, 2)
+  totalCost     Decimal?  @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs     ServiceLog[]
+  invoices Invoice[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([technicianId])
+  @@index([receivedAt])
+  @@index([reportNumber])
+  @@index([deviceSerial])
+}
+
+// ─── ERP: SERVICE LOGS ────────────────────────────────────
+
+enum ServiceLogType {
+  STATUS_CHANGE
+  NOTE_ADDED
+  TECHNICIAN_ASSIGNED
+  PARTS_UPDATED
+  PHOTO_ADDED
+  CUSTOMER_CONTACT
+  FIELD_VISIT
+  DIAGNOSIS_UPDATED
+}
+
+model ServiceLog {
+  id              String         @id @default(cuid())
+  serviceReportId String
+  serviceReport   ServiceReport  @relation(fields: [serviceReportId], references: [id], onDelete: Cascade)
+
+  personnelId     String?
+  personnel       Personnel?     @relation(fields: [personnelId], references: [id])
+
+  type            ServiceLogType @default(NOTE_ADDED)
+  description     String         @db.Text
+  oldValue        String?
+  newValue        String?
+  meta            Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([serviceReportId])
+  @@index([createdAt])
+  @@index([personnelId])
+}
+
+// ─── ERP: ACCOUNTING / INVOICES ───────────────────────────
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InvoiceType {
+  SERVICE   // Servis Faturası
+  SALE      // Satış Faturası
+  PROFORMA  // Proforma
+}
+
+enum PaymentMethod {
+  CASH          // Nakit
+  BANK_TRANSFER // Havale/EFT
+  CREDIT_CARD   // Kredi Kartı
+  CHECK         // Çek
+  INSTALLMENT   // Taksit
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique // INV-2024-001
+
+  type          InvoiceType   @default(SERVICE)
+  status        InvoiceStatus @default(DRAFT)
+
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  serviceReportId String?
+  serviceReport   ServiceReport? @relation(fields: [serviceReportId], references: [id])
+  orderId         String?        @unique
+  order           Order?         @relation(fields: [orderId], references: [id])
+
+  // Fatura anı müşteri snapshot
+  customerSnapshot Json?
+
+  // Finansal
+  subtotal       Decimal @db.Decimal(10, 2)
+  vatRate        Decimal @default(20) @db.Decimal(5, 2)
+  vatAmount      Decimal @db.Decimal(10, 2)
+  discountAmount Decimal @default(0) @db.Decimal(10, 2)
+  total          Decimal @db.Decimal(10, 2)
+  currency       String  @default("TRY")
+
+  // Ödeme
+  paymentMethod PaymentMethod?
+  paidAmount    Decimal        @default(0) @db.Decimal(10, 2)
+
+  // Tarihler
+  invoiceDate DateTime  @default(now())
+  dueDate     DateTime?
+  paidAt      DateTime?
+
+  // Kalemler
+  lineItems Json // [{description, qty, unitPrice, vatRate, lineTotal}]
+
+  notes  String? @db.Text
+  pdfUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([invoiceDate])
+  @@index([dueDate])
+  @@index([invoiceNumber])
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  invoiceId String
+  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  reference String?       // Dekont no, çek no, vb.
+  note      String?
+  paidAt    DateTime      @default(now())
+
+  @@index([invoiceId])
+}
+
+// ─── ACTIVITY LOGS ────────────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  type       String   // "USER" | "ADMIN" | "SYSTEM"
+  action     String   // e.g. "ORDER_PLACED", "PRODUCT_CREATED"
+  userId     String?  // who performed the action
+  userName   String?  // snapshot of name at time of action
+  targetId   String?  // affected resource ID
+  targetType String?  // "ORDER" | "PRODUCT" | "USER" etc.
+  detail     String?  @db.Text // human-readable description
+  meta       Json?    // extra structured data
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([type])
+  @@index([userId])
+  @@index([action])
+}
