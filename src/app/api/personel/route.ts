@@ -42,13 +42,62 @@ export async function POST(req: NextRequest) {
 
   const { firstName, lastName, email, password, personnelRole, positionTitle, department, speciality, phone, salary, permissions } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return NextResponse.json({ error: "Bu e-posta zaten kullanılıyor." }, { status: 409 });
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    include: { personnel: true },
+  });
 
   const passwordHash = await hash(password, 12);
-
-  // Map personnel role to user role
   const userRole: UserRole = ["MANAGER", "SUPERVISOR"].includes(personnelRole) ? "MANAGER" : "TECHNICIAN";
+
+  // E-posta mevcut ama kullanıcı pasif silinmişse → yeniden aktive et
+  if (existing) {
+    const hasActivePersonnel = existing.personnel?.isActive === true;
+    if (hasActivePersonnel) {
+      return NextResponse.json({ error: "Bu e-posta zaten kullanılıyor." }, { status: 409 });
+    }
+
+    // User'ı güncelle ve aktive et
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { firstName, lastName, passwordHash, role: userRole, isActive: true },
+    });
+
+    let personnel;
+    if (existing.personnel) {
+      // Mevcut personnel kaydını yeniden aktive et
+      personnel = await prisma.personnel.update({
+        where: { id: existing.personnel.id },
+        data: {
+          role: personnelRole,
+          positionTitle: positionTitle || null,
+          department: department ?? null,
+          speciality: speciality ?? null,
+          phone: phone ?? null,
+          salary: salary ?? null,
+          permissions,
+          isActive: true,
+        },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } },
+      });
+    } else {
+      personnel = await prisma.personnel.create({
+        data: {
+          userId: existing.id,
+          role: personnelRole,
+          positionTitle: positionTitle || null,
+          department,
+          speciality,
+          phone,
+          salary: salary ?? null,
+          permissions,
+        },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } },
+      });
+    }
+
+    return NextResponse.json({ personnel }, { status: 201 });
+  }
 
   const newUser = await prisma.user.create({
     data: { email, passwordHash, firstName, lastName, role: userRole },

@@ -60,8 +60,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
 
-  // Soft delete
-  await prisma.personnel.update({ where: { id }, data: { isActive: false } });
+  // Soft delete: hem personnel hem user'ı pasife al (email yeniden kullanılabilsin)
+  const personnel = await prisma.personnel.update({
+    where: { id },
+    data: { isActive: false },
+    select: { userId: true },
+  });
+  await prisma.user.update({ where: { id: personnel.userId }, data: { isActive: false } });
+
   return NextResponse.json({ ok: true });
 }
 
