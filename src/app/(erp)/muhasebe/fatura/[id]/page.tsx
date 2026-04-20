@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   ChevronLeft, CheckCircle2, Clock, AlertTriangle, FileText,
   Building2, User, CreditCard, Banknote, Landmark, Smartphone, Package,
-  CalendarDays, Plus, Trash2,
+  CalendarDays, Plus, Trash2, Download,
 } from "lucide-react";
 
 type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "PARTIALLY_PAID" | "OVERDUE" | "CANCELLED";
@@ -158,6 +158,13 @@ export default function FaturaDetailPage() {
           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${cfg.classes}`}>
             {cfg.icon}{cfg.label}
           </span>
+          <a
+            href={`/api/muhasebe/faturalar/${id}/pdf`}
+            download
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600"
+          >
+            <Download size={13} />PDF İndir
+          </a>
           {isSuperAdmin && (
             <button onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors text-xs font-medium text-red-600">

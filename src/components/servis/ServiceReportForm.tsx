@@ -35,6 +35,14 @@ interface Customer {
   district?: string | null;
 }
 
+const PERSONNEL_ROLE_LABELS: Record<string, string> = {
+  TECHNICIAN: "Teknisyen",
+  FIELD_TECHNICIAN: "Saha Teknisyeni",
+  WORKSHOP_TECHNICIAN: "Atölye Teknisyeni",
+  SUPERVISOR: "Süpervizör",
+  MANAGER: "Yönetici",
+};
+
 interface Personnel {
   id: string;
   role: string;
@@ -666,7 +674,7 @@ export function ServiceReportForm({ personnel }: Props) {
                 <option value="">— Teknisyen seç —</option>
                 {personnel.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {[p.user.firstName, p.user.lastName].filter(Boolean).join(" ") || "Teknisyen"} · {p.role}
+                    {[p.user.firstName, p.user.lastName].filter(Boolean).join(" ") || "Teknisyen"} · {PERSONNEL_ROLE_LABELS[p.role] ?? p.role}
                   </option>
                 ))}
               </select>

@@ -51,6 +51,11 @@ interface Report {
     role: string;
     user: { firstName: string | null; lastName: string | null; email: string };
   } | null;
+  additionalTechnicians: {
+    id: string;
+    role: string;
+    user: { firstName: string | null; lastName: string | null };
+  }[];
   deviceBrand: string | null;
   deviceModel: string | null;
   deviceSerial: string | null;
@@ -69,6 +74,7 @@ interface Report {
   deliveredAt: string | null;
   laborCost: string | null;
   partsCost: string | null;
+  serviceCost: string | null;
   totalCost: string | null;
   internalNotes: string | null;
   customerNote: string | null;
@@ -159,11 +165,15 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
   // Technician edit
   const [editTech, setEditTech] = useState(false);
   const [techId, setTechId] = useState(report.technician?.id || "");
+  const [additionalTechIds, setAdditionalTechIds] = useState<string[]>(
+    (report.additionalTechnicians ?? []).map((t) => t.id)
+  );
 
   // Cost edit
   const [editCosts, setEditCosts] = useState(false);
   const [laborCost, setLaborCost] = useState(report.laborCost || "");
   const [partsCostVal, setPartsCostVal] = useState(report.partsCost || "");
+  const [serviceCostVal, setServiceCostVal] = useState(report.serviceCost || "");
   const [totalCostVal, setTotalCostVal] = useState(report.totalCost || "");
 
   // Signatures
@@ -194,11 +204,14 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
   const openInvModal = () => {
     // Pre-populate from report
     const lines: { description: string; qty: number; unitPrice: number; vatRate: number }[] = [];
+    if (report.serviceCost && parseFloat(report.serviceCost) > 0) {
+      lines.push({ description: "Servis Ücreti", qty: 1, unitPrice: parseFloat(report.serviceCost), vatRate: 20 });
+    } else {
+      lines.push({ description: "Servis Ücreti", qty: 1, unitPrice: 0, vatRate: 20 });
+    }
     if (report.laborCost && parseFloat(report.laborCost) > 0) {
       lines.push({ description: "İşçilik", qty: 1, unitPrice: parseFloat(report.laborCost), vatRate: 20 });
     }
-    // Servis ücreti satırı (ayrı, boş — kullanıcı dolduracak)
-    lines.push({ description: "Servis Ücreti", qty: 1, unitPrice: 0, vatRate: 20 });
     (report.partsUsed ?? []).forEach((p: PartItem) => {
       lines.push({ description: p.name, qty: p.quantity, unitPrice: p.unitPrice, vatRate: 20 });
     });
@@ -286,13 +299,14 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
     if (await patch({ partsUsed: parts, partsCost: totalParts })) setEditParts(false);
   };
   const saveTech = async () => {
-    if (await patch({ technicianId: techId || null })) setEditTech(false);
+    if (await patch({ technicianId: techId || null, additionalTechnicianIds: additionalTechIds })) setEditTech(false);
   };
   const saveCosts = async () => {
     const lc = parseFloat(laborCost) || 0;
     const pc = parseFloat(partsCostVal) || 0;
-    const tc = lc + pc; // otomatik hesapla
-    if (await patch({ laborCost: lc, partsCost: pc, totalCost: tc })) setEditCosts(false);
+    const sc = parseFloat(serviceCostVal) || 0;
+    const tc = lc + pc + sc; // otomatik hesapla
+    if (await patch({ laborCost: lc, partsCost: pc, serviceCost: sc, totalCost: tc })) setEditCosts(false);
   };
   const saveSignatures = async () => {
     setSavingSig(true);
@@ -564,34 +578,55 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               <InfoRow label="Tahmini Teslim" value={fmt(report.estimatedDate)} />
               <InfoRow label="Tamamlanma" value={fmt(report.completedAt)} />
               <InfoRow label="Teslim" value={fmt(report.deliveredAt)} />
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-gray-500">Teknisyen</span>
-                {canEdit && !editTech ? (
+              {/* Teknisyen(ler) */}
+              {!editTech ? (
+                <div className="flex items-start justify-between mt-1">
+                  <span className="text-xs text-gray-500 mt-0.5">Teknisyen</span>
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-gray-800">{techName(report.technician) || "—"}</span>
-                    <button onClick={() => setEditTech(true)} className="p-1 rounded hover:bg-gray-100"><Edit3 size={10} className="text-gray-400" /></button>
-                  </div>
-                ) : editTech ? (
-                  <div className="flex items-center gap-1">
-                    <select
-                      value={techId}
-                      onChange={(e) => setTechId(e.target.value)}
-                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
-                    >
-                      <option value="">Seçilmedi</option>
-                      {personnel.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {[p.user.firstName, p.user.lastName].filter(Boolean).join(" ")}
-                        </option>
+                    <div className="text-right">
+                      <p className="text-xs font-medium text-gray-800">{techName(report.technician) || "—"}</p>
+                      {(report.additionalTechnicians ?? []).map((t) => (
+                        <p key={t.id} className="text-xs text-gray-500">{[t.user.firstName, t.user.lastName].filter(Boolean).join(" ")}</p>
                       ))}
-                    </select>
-                    <button onClick={saveTech} disabled={saving} className="p-1 rounded bg-primary text-white"><Save size={10} /></button>
-                    <button onClick={() => setEditTech(false)} className="p-1 rounded hover:bg-gray-100"><X size={10} /></button>
+                    </div>
+                    {canEdit && <button onClick={() => setEditTech(true)} className="p-1 rounded hover:bg-gray-100 ml-1"><Edit3 size={10} className="text-gray-400" /></button>}
                   </div>
-                ) : (
-                  <span className="text-xs font-medium text-gray-800">{techName(report.technician) || "—"}</span>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="mt-1 space-y-1.5">
+                  <span className="text-xs text-gray-500 block">Teknisyen Ataması</span>
+                  <select value={techId} onChange={(e) => setTechId(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none">
+                    <option value="">Seçilmedi</option>
+                    {personnel.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {[p.user.firstName, p.user.lastName].filter(Boolean).join(" ")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-gray-500 block">Ek Teknisyenler</span>
+                  <div className="space-y-1">
+                    {personnel.filter((p) => p.id !== techId).map((p) => {
+                      const checked = additionalTechIds.includes(p.id);
+                      return (
+                        <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={checked}
+                            onChange={() => setAdditionalTechIds((ids) =>
+                              checked ? ids.filter((i) => i !== p.id) : [...ids, p.id]
+                            )}
+                            className="rounded"
+                          />
+                          <span className="text-xs text-gray-700">{[p.user.firstName, p.user.lastName].filter(Boolean).join(" ")}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-1 pt-1">
+                    <button onClick={saveTech} disabled={saving} className="flex items-center gap-1 px-2 py-1 bg-primary text-white rounded-lg text-xs disabled:opacity-50"><Save size={10} /> Kaydet</button>
+                    <button onClick={() => setEditTech(false)} className="px-2 py-1 border border-gray-200 rounded-lg text-xs"><X size={10} /></button>
+                  </div>
+                </div>
+              )}
             </InfoCard>
 
             <div className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -604,11 +639,12 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               {editCosts ? (
                 <div className="space-y-2">
                   {[
+                    { label: "Servis Ücreti (₺)", val: serviceCostVal, set: setServiceCostVal },
                     { label: "İşçilik (₺)", val: laborCost, set: setLaborCost },
                     { label: "Parça (₺)", val: partsCostVal, set: setPartsCostVal },
                   ].map(({ label, val, set }) => (
                     <div key={label} className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500 w-24">{label}</label>
+                      <label className="text-xs text-gray-500 w-28">{label}</label>
                       <input
                         type="number"
                         min={0}
@@ -620,9 +656,9 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                   ))}
                   {/* Hesaplanan toplam önizleme */}
                   <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-                    <span className="text-xs text-gray-500 w-24">Toplam</span>
+                    <span className="text-xs text-gray-500 w-28">Toplam</span>
                     <span className="text-xs font-bold text-gray-800">
-                      ₺{((parseFloat(laborCost) || 0) + (parseFloat(partsCostVal) || 0)).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                      ₺{((parseFloat(serviceCostVal) || 0) + (parseFloat(laborCost) || 0) + (parseFloat(partsCostVal) || 0)).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex gap-2 pt-1">
@@ -636,15 +672,15 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <InfoRow label="İşçilik" value={fmtCurrency(report.laborCost)} />
-                  <InfoRow label="Parça" value={fmtCurrency(report.partsCost)} />
+                  {(parseFloat(report.serviceCost ?? "0") || 0) > 0 && <InfoRow label="Servis Ücreti" value={fmtCurrency(report.serviceCost)} />}
+                  {(parseFloat(report.laborCost ?? "0") || 0) > 0 && <InfoRow label="İşçilik" value={fmtCurrency(report.laborCost)} />}
+                  {(parseFloat(report.partsCost ?? "0") || 0) > 0 && <InfoRow label="Parça" value={fmtCurrency(report.partsCost)} />}
                   <div className="pt-1 border-t border-gray-100">
-                    {/* Toplam = işçilik + parça (totalCost 0 ise otomatik hesapla) */}
                     <InfoRow
                       label="Toplam"
                       value={(() => {
                         const tc = parseFloat(report.totalCost ?? "0") || 0;
-                        const auto = (parseFloat(report.laborCost ?? "0") || 0) + (parseFloat(report.partsCost ?? "0") || 0);
+                        const auto = (parseFloat(report.serviceCost ?? "0") || 0) + (parseFloat(report.laborCost ?? "0") || 0) + (parseFloat(report.partsCost ?? "0") || 0);
                         const val = tc > 0 ? tc : auto;
                         return val > 0 ? `₺${val.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}` : "—";
                       })()}
@@ -705,6 +741,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
         <div className="space-y-6 bg-white border border-gray-200 rounded-2xl p-5">
           <SignaturePad
             label="Müşteri İmzası"
+            subLabel={customerName(report.customer)}
             value={customerSig || undefined}
             onChange={setCustomerSig}
             disabled={!canEdit}

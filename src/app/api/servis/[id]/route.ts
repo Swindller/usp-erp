@@ -28,6 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     include: {
       customer: true,
       technician: { include: { user: { select: { firstName: true, lastName: true, email: true } } } },
+      additionalTechnicians: { include: { user: { select: { firstName: true, lastName: true } } } },
       logs: {
         include: { personnel: { include: { user: { select: { firstName: true, lastName: true } } } } },
         orderBy: { createdAt: "desc" },
@@ -61,9 +62,11 @@ const updateSchema = z.object({
     quantity: z.number(), unitPrice: z.number(),
   })).optional(),
   technicianId: z.string().nullable().optional(),
+  additionalTechnicianIds: z.array(z.string()).optional(),
   estimatedDate: z.string().nullable().optional(),
   laborCost: z.coerce.number().optional(),
   partsCost: z.coerce.number().optional(),
+  serviceCost: z.coerce.number().optional(),
   totalCost: z.coerce.number().optional(),
   isWarranty: z.boolean().optional(),
   warrantyUntil: z.string().nullable().optional(),
@@ -101,6 +104,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updateData.technicianId = data.technicianId;
     if (data.technicianId && data.technicianId !== existing.technicianId) logEntries.push({ type: "TECHNICIAN_ASSIGNED", description: "Teknisyen ataması güncellendi", personnelId: user.personnel?.id });
   }
+  if (data.additionalTechnicianIds !== undefined) {
+    updateData.additionalTechnicians = { set: data.additionalTechnicianIds.map((id) => ({ id })) };
+  }
   if (data.diagnosis !== undefined) updateData.diagnosis = data.diagnosis;
   if (data.operations !== undefined) updateData.operations = data.operations;
   if (data.partsUsed !== undefined) { updateData.partsUsed = data.partsUsed; logEntries.push({ type: "PARTS_UPDATED", description: `Parçalar güncellendi (${data.partsUsed.length} kalem)`, personnelId: user.personnel?.id }); }
@@ -108,6 +114,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.estimatedDate !== undefined) updateData.estimatedDate = data.estimatedDate ? new Date(data.estimatedDate) : null;
   if (data.laborCost !== undefined) updateData.laborCost = data.laborCost;
   if (data.partsCost !== undefined) updateData.partsCost = data.partsCost;
+  if (data.serviceCost !== undefined) updateData.serviceCost = data.serviceCost;
   if (data.totalCost !== undefined) updateData.totalCost = data.totalCost;
   if (data.isWarranty !== undefined) updateData.isWarranty = data.isWarranty;
   if (data.warrantyUntil !== undefined) updateData.warrantyUntil = data.warrantyUntil ? new Date(data.warrantyUntil) : null;
@@ -126,6 +133,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       include: {
         customer: true,
         technician: { include: { user: { select: { firstName: true, lastName: true } } } },
+        additionalTechnicians: { include: { user: { select: { firstName: true, lastName: true } } } },
         logs: { include: { personnel: { include: { user: { select: { firstName: true, lastName: true } } } } }, orderBy: { createdAt: "desc" } },
       },
     });

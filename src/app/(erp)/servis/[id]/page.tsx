@@ -22,6 +22,7 @@ export default async function ServisDetailPage({ params }: Props) {
       include: {
         customer: true,
         technician: { include: { user: { select: { firstName: true, lastName: true, email: true } } } },
+        additionalTechnicians: { include: { user: { select: { firstName: true, lastName: true } } } },
         logs: {
           include: { personnel: { include: { user: { select: { firstName: true, lastName: true } } } } },
           orderBy: { createdAt: "desc" },

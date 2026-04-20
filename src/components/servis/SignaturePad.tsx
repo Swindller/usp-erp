@@ -16,13 +16,14 @@ export interface SignaturePadRef {
 
 interface Props {
   label: string;
+  subLabel?: string; // e.g. customer name shown below signature
   value?: string;
   onChange?: (dataUrl: string | null) => void;
   disabled?: boolean;
 }
 
 export const SignaturePad = forwardRef<SignaturePadRef, Props>(
-  ({ label, value, onChange, disabled = false }, ref) => {
+  ({ label, subLabel, value, onChange, disabled = false }, ref) => {
     const sigRef = useRef<SignatureCanvasType>(null);
 
     useImperativeHandle(ref, () => ({
@@ -86,6 +87,12 @@ export const SignaturePad = forwardRef<SignaturePadRef, Props>(
             />
           )}
         </div>
+
+        {subLabel && (
+          <div className="flex items-center gap-2 pt-1 border-t border-gray-200">
+            <span className="text-xs text-gray-500 font-medium">{subLabel}</span>
+          </div>
+        )}
 
         {value && !disabled && (
           <div className="flex items-center gap-1.5 text-xs text-green-600">

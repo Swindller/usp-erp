@@ -642,8 +642,9 @@ model Personnel {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  assignedReports ServiceReport[] @relation("AssignedTechnician")
-  serviceLogs     ServiceLog[]
+  assignedReports       ServiceReport[] @relation("AssignedTechnician")
+  additionalReports     ServiceReport[] @relation("AdditionalTechnicians")
+  serviceLogs           ServiceLog[]
   attendances     Attendance[]
   payrolls        Payroll[]
 }
@@ -724,13 +725,15 @@ model ServiceReport {
   // Maliyet
   laborCost     Decimal?  @db.Decimal(10, 2)
   partsCost     Decimal?  @db.Decimal(10, 2)
+  serviceCost   Decimal?  @db.Decimal(10, 2)
   totalCost     Decimal?  @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  logs     ServiceLog[]
-  invoices Invoice[]
+  logs                  ServiceLog[]
+  invoices              Invoice[]
+  additionalTechnicians Personnel[] @relation("AdditionalTechnicians")
 
   @@index([customerId])
   @@index([status])
