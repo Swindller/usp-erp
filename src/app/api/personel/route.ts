@@ -6,6 +6,7 @@ import { hash } from "bcryptjs";
 import { PersonnelRole, UserRole } from "@prisma/client";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+const ERP_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 const createSchema = z.object({
   firstName: z.string().min(1),
@@ -23,7 +24,8 @@ const createSchema = z.object({
 
 export async function GET() {
   const user = await getAuthUser();
-  if (!user || !ADMIN_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Okuma: tüm ERP rolleri; yazma işlemleri aşağıda ADMIN_ROLES kontrolü ile korunur
+  if (!user || !ERP_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const personnel = await prisma.personnel.findMany({
     where: { isActive: true },

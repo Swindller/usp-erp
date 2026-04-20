@@ -57,10 +57,7 @@ export default async function ServisListPage({ searchParams }: Props) {
     ];
   }
 
-  if (role === "TECHNICIAN" && session.user?.email) {
-    const user = await prisma.user.findUnique({ where: { email: session.user.email }, include: { personnel: true } });
-    if (user?.personnel) where.technicianId = user.personnel.id;
-  }
+  // Tüm yetkili kullanıcılar tüm raporları görür; yalnızca FIELD_TECHNICIAN rolüne sayfada kısıtlama eklenirse buraya filtre eklenir
 
   const [reports, total, statusCounts] = await Promise.all([
     prisma.serviceReport.findMany({
