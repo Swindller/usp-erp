@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
+
 import { redirect } from "next/navigation";
+import { getAppSession } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { ServiceStatus } from "@prisma/client";
 import { ServiceStatusBadge, STATUS_CONFIG } from "@/components/servis/ServiceStatusBadge";
@@ -35,8 +36,8 @@ function relativeDate(date: Date) {
 
 export default async function ServisListPage({ searchParams }: Props) {
   const { status, page: pageStr, q } = await searchParams;
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
+  const session = await getAppSession();
+  const role = session?.user?.role;
   if (!session) redirect("/giris");
   if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
 

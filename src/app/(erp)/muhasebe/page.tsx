@@ -1,13 +1,12 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { InvoiceStatus, CustomerType, Prisma } from "@prisma/client";
 import Link from "next/link";
 import { TrendingUp, Clock, AlertTriangle, CheckCircle2, FileText, ChevronRight, Building2, User, Plus } from "lucide-react";
 import { DeleteInvoiceButton } from "@/components/muhasebe/DeleteInvoiceButton";
+import { getAppSession } from "@/lib/auth-helpers";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+const ROLE_ALLOWED = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
 
 interface Props {
   searchParams: Promise<{ status?: string; page?: string }>;
@@ -31,10 +30,14 @@ function customerName(c: { type: CustomerType; firstName: string | null; lastNam
 
 export default async function MuhasebePage({ searchParams }: Props) {
   const { status, page: pageStr } = await searchParams;
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
+  const session = await getAppSession();
   if (!session) redirect("/giris");
-  if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
+  const role = session.user.role;
+  if (!ROLE_ALLOWED.includes(role)) {
+    // muhasebe permission varsa izin ver
+    const personnel = await prisma.personnel.findFirst({ where: { userId: session.user.id }, select: { permissions: true } });
+    if (!personnel?.permissions?.includes("muhasebe")) redirect("/");
+  }
 
   const page = Math.max(1, parseInt(pageStr || "1"));
   const limit = 20;

@@ -1,14 +1,15 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
+
 import { redirect } from "next/navigation";
+import { getAppSession } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { ServiceReportForm } from "@/components/servis/ServiceReportForm";
 
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 export default async function YeniServisPage() {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
+  const session = await getAppSession();
+  const role = session?.user?.role;
   if (!session) redirect("/giris");
   if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
 
