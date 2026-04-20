@@ -635,6 +635,8 @@ model Personnel {
   department  String?
   speciality  String?
   phone       String?
+  salary      Decimal?      @db.Decimal(12, 2)
+  permissions String[]      @default([])
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

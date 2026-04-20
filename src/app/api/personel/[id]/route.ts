@@ -1,0 +1,63 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+import { PersonnelRole } from "@prisma/client";
+
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+const updateSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  personnelRole: z.nativeEnum(PersonnelRole).optional(),
+  department: z.string().nullable().optional(),
+  speciality: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  salary: z.coerce.number().nullable().optional(),
+  permissions: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getAuthUser();
+  if (!user || !ADMIN_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const parsed = updateSchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+
+  const { firstName, lastName, personnelRole, department, speciality, phone, salary, permissions, isActive } = parsed.data;
+
+  const personnel = await prisma.personnel.update({
+    where: { id },
+    data: {
+      ...(personnelRole && { role: personnelRole }),
+      ...(department !== undefined && { department }),
+      ...(speciality !== undefined && { speciality }),
+      ...(phone !== undefined && { phone }),
+      ...(salary !== undefined && { salary }),
+      ...(permissions !== undefined && { permissions }),
+      ...(isActive !== undefined && { isActive }),
+      user: (firstName || lastName) ? {
+        update: {
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+        },
+      } : undefined,
+    },
+    include: { user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } } },
+  });
+
+  return NextResponse.json({ personnel });
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getAuthUser();
+  if (!user || !ADMIN_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+
+  // Soft delete
+  await prisma.personnel.update({ where: { id }, data: { isActive: false } });
+  return NextResponse.json({ ok: true });
+}

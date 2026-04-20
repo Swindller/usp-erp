@@ -20,27 +20,36 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
-  if (q.length < 2) return NextResponse.json({ customers: [] });
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const limit = 25;
 
-  const customers = await prisma.customer.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { firstName: { contains: q, mode: "insensitive" } },
-        { lastName: { contains: q, mode: "insensitive" } },
-        { companyName: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q } },
-        { taxNumber: { contains: q } },
-      ],
-    },
-    select: {
-      id: true, type: true, firstName: true, lastName: true,
-      companyName: true, phone: true, email: true, address: true, city: true, district: true,
-    },
-    take: 10,
-  });
+  // Short query for autocomplete (servis form)
+  if (q && q.length < 2 && !searchParams.get("page")) return NextResponse.json({ customers: [] });
 
-  return NextResponse.json({ customers });
+  const where = q ? {
+    isActive: true,
+    OR: [
+      { firstName: { contains: q, mode: "insensitive" as const } },
+      { lastName: { contains: q, mode: "insensitive" as const } },
+      { companyName: { contains: q, mode: "insensitive" as const } },
+      { phone: { contains: q } },
+      { email: { contains: q, mode: "insensitive" as const } },
+      { taxNumber: { contains: q } },
+    ],
+  } : { isActive: true };
+
+  const [customers, total] = await Promise.all([
+    prisma.customer.findMany({
+      where,
+      include: { _count: { select: { serviceReports: true } } },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.customer.count({ where }),
+  ]);
+
+  return NextResponse.json({ customers, total });
 }
 
 const createSchema = z.object({

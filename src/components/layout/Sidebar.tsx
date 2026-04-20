@@ -5,20 +5,34 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Wrench, Users, Banknote, UserCog,
-  LogOut, ChevronRight, Droplets,
+  LogOut, ChevronRight, Droplets, Shield,
 } from "lucide-react";
 
-const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/servis", label: "Servis Raporları", icon: Wrench },
-  { href: "/musteriler", label: "Müşteriler", icon: Users },
-  { href: "/muhasebe", label: "Muhasebe", icon: Banknote },
-  { href: "/personel", label: "Personel", icon: UserCog },
+const ALL_NAV = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, permKey: "dashboard" },
+  { href: "/servis", label: "Servis Raporları", icon: Wrench, permKey: "servis" },
+  { href: "/musteriler", label: "Müşteriler", icon: Users, permKey: "musteriler" },
+  { href: "/muhasebe", label: "Muhasebe", icon: Banknote, permKey: "muhasebe" },
+  { href: "/personel", label: "Personel", icon: UserCog, permKey: "personel" },
 ];
 
-export function Sidebar() {
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+interface SidebarProps {
+  permissions?: string[];
+}
+
+export function Sidebar({ permissions }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const role = (session?.user as { role?: string })?.role ?? "";
+
+  const isAdmin = ADMIN_ROLES.includes(role);
+
+  // Admin tüm sayfaları görür, diğerleri sadece izin verilenleri
+  const visibleNav = ALL_NAV.filter((item) =>
+    isAdmin || (permissions ?? []).includes(item.permKey)
+  );
 
   return (
     <aside className="w-64 min-h-screen bg-slate-900 flex flex-col">
@@ -35,7 +49,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const isActive =
             item.href === "/"
               ? pathname === "/"
@@ -60,6 +74,12 @@ export function Sidebar() {
 
       {/* User footer */}
       <div className="border-t border-slate-700/60 px-4 py-4">
+        {isAdmin && (
+          <div className="flex items-center gap-1.5 mb-3 px-1">
+            <Shield size={11} className="text-blue-400" />
+            <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wider">Tam Yetki</span>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
             <span className="text-slate-300 text-xs font-bold">

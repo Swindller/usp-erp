@@ -6,6 +6,23 @@ import { z } from "zod";
 
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getAuthUser();
+  if (!user || !ALLOWED_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { id } = await params;
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    include: {
+      customer: { select: { type: true, firstName: true, lastName: true, companyName: true, phone: true, email: true } },
+      serviceReport: { select: { id: true, reportNumber: true } },
+      payments: { orderBy: { paidAt: "desc" } },
+    },
+  });
+  if (!invoice) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
+  return NextResponse.json({ invoice });
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getAuthUser();
   if (!user || !ALLOWED_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
