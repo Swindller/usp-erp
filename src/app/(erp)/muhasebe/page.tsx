@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { InvoiceStatus, CustomerType, Prisma } from "@prisma/client";
 import Link from "next/link";
-import { TrendingUp, Clock, AlertTriangle, CheckCircle2, FileText, ChevronRight, Building2, User } from "lucide-react";
+import { TrendingUp, Clock, AlertTriangle, CheckCircle2, FileText, ChevronRight, Building2, User, Plus } from "lucide-react";
 import { DeleteInvoiceButton } from "@/components/muhasebe/DeleteInvoiceButton";
 
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
@@ -57,9 +57,14 @@ export default async function MuhasebePage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><TrendingUp size={22} className="text-blue-600" />Muhasebe</h1>
-        <p className="text-sm text-gray-500 mt-1">Fatura, ödeme ve vade takibi</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><TrendingUp size={22} className="text-blue-600" />Muhasebe</h1>
+          <p className="text-sm text-gray-500 mt-1">Fatura, ödeme ve vade takibi</p>
+        </div>
+        <Link href="/muhasebe/yeni-fatura" className="flex items-center gap-2 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors">
+          <Plus size={16} />Yeni Fatura
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

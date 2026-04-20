@@ -38,12 +38,16 @@ export default async function ServisDetailPage({ params }: Props) {
 
   if (!report) notFound();
 
-  if (role === "TECHNICIAN" && session.user?.email) {
+  let canCreateInvoice = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(role ?? "");
+
+  if (session.user?.email) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email }, include: { personnel: true } });
-    if (user?.personnel && report.technicianId !== user.personnel.id) redirect("/servis");
+    if (role === "TECHNICIAN" && user?.personnel && report.technicianId !== user.personnel.id) redirect("/servis");
+    // Muhasebe yetkisi olan teknisyenler de fatura oluşturabilir
+    if (!canCreateInvoice && user?.personnel?.permissions.includes("muhasebe")) canCreateInvoice = true;
   }
 
   const canEdit   = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(role ?? "");
   const canDelete = role === "SUPER_ADMIN";
-  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} canDelete={canDelete} />;
+  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} canDelete={canDelete} canCreateInvoice={canCreateInvoice} />;
 }

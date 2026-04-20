@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoicePDF } from "@/components/muhasebe/InvoicePDF";
@@ -9,9 +8,8 @@ import { createElement } from "react";
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (!session || !ALLOWED_ROLES.includes(role ?? "")) {
+  const user = await getAuthUser();
+  if (!user || !ALLOWED_ROLES.includes(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

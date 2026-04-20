@@ -97,6 +97,7 @@ interface Props {
   personnel: Personnel[];
   canEdit: boolean;
   canDelete?: boolean;
+  canCreateInvoice?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -146,7 +147,7 @@ function fmtCurrency(val: string | null) {
 
 // ── Component ─────────────────────────────────────────────────
 
-export function ServiceReportDetail({ report: initialReport, personnel, canEdit, canDelete = false }: Props) {
+export function ServiceReportDetail({ report: initialReport, personnel, canEdit, canDelete = false, canCreateInvoice = false }: Props) {
   const [report, setReport] = useState<Report>(initialReport);
   const [tab, setTab] = useState<"details" | "logs" | "signatures">("details");
   const [saving, setSaving] = useState(false);
@@ -169,12 +170,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
     (report.additionalTechnicians ?? []).map((t) => t.id)
   );
 
-  // Cost edit
-  const [editCosts, setEditCosts] = useState(false);
-  const [laborCost, setLaborCost] = useState(report.laborCost || "");
-  const [partsCostVal, setPartsCostVal] = useState(report.partsCost || "");
-  const [serviceCostVal, setServiceCostVal] = useState(report.serviceCost || "");
-  const [totalCostVal, setTotalCostVal] = useState(report.totalCost || "");
 
   // Signatures
   const [customerSig, setCustomerSig] = useState<string | null>(report.customerSignature);
@@ -301,13 +296,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
   const saveTech = async () => {
     if (await patch({ technicianId: techId || null, additionalTechnicianIds: additionalTechIds })) setEditTech(false);
   };
-  const saveCosts = async () => {
-    const lc = parseFloat(laborCost) || 0;
-    const pc = parseFloat(partsCostVal) || 0;
-    const sc = parseFloat(serviceCostVal) || 0;
-    const tc = lc + pc + sc; // otomatik hesapla
-    if (await patch({ laborCost: lc, partsCost: pc, serviceCost: sc, totalCost: tc })) setEditCosts(false);
-  };
   const saveSignatures = async () => {
     setSavingSig(true);
     await patch({ customerSignature: customerSig || null, technicianSignature: techSig || null });
@@ -341,7 +329,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               >
                 <Download size={13} />PDF İndir
               </a>
-              {canEdit && (
+              {canCreateInvoice && (
                 <button
                   type="button"
                   onClick={openInvModal}
@@ -571,7 +559,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
             />
           </div>
 
-          {/* Costs + Technician + Dates */}
+          {/* Technician + Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InfoCard icon={<Clock size={15} />} title="Tarihler & Atama">
               <InfoRow label="Alınma" value={fmt(report.receivedAt)} />
@@ -629,67 +617,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               )}
             </InfoCard>
 
-            <div className="bg-white border border-gray-200 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-800 text-sm">Maliyet</h3>
-                {canEdit && !editCosts && (
-                  <button onClick={() => setEditCosts(true)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><Edit3 size={14} /></button>
-                )}
-              </div>
-              {editCosts ? (
-                <div className="space-y-2">
-                  {[
-                    { label: "Servis Ücreti (₺)", val: serviceCostVal, set: setServiceCostVal },
-                    { label: "İşçilik (₺)", val: laborCost, set: setLaborCost },
-                    { label: "Parça (₺)", val: partsCostVal, set: setPartsCostVal },
-                  ].map(({ label, val, set }) => (
-                    <div key={label} className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500 w-28">{label}</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={val}
-                        onChange={(e) => set(e.target.value)}
-                        className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  ))}
-                  {/* Hesaplanan toplam önizleme */}
-                  <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-                    <span className="text-xs text-gray-500 w-28">Toplam</span>
-                    <span className="text-xs font-bold text-gray-800">
-                      ₺{((parseFloat(serviceCostVal) || 0) + (parseFloat(laborCost) || 0) + (parseFloat(partsCostVal) || 0)).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={saveCosts} disabled={saving} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg text-xs disabled:opacity-50">
-                      <Save size={12} /> Kaydet
-                    </button>
-                    <button onClick={() => setEditCosts(false)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs">
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(parseFloat(report.serviceCost ?? "0") || 0) > 0 && <InfoRow label="Servis Ücreti" value={fmtCurrency(report.serviceCost)} />}
-                  {(parseFloat(report.laborCost ?? "0") || 0) > 0 && <InfoRow label="İşçilik" value={fmtCurrency(report.laborCost)} />}
-                  {(parseFloat(report.partsCost ?? "0") || 0) > 0 && <InfoRow label="Parça" value={fmtCurrency(report.partsCost)} />}
-                  <div className="pt-1 border-t border-gray-100">
-                    <InfoRow
-                      label="Toplam"
-                      value={(() => {
-                        const tc = parseFloat(report.totalCost ?? "0") || 0;
-                        const auto = (parseFloat(report.serviceCost ?? "0") || 0) + (parseFloat(report.laborCost ?? "0") || 0) + (parseFloat(report.partsCost ?? "0") || 0);
-                        const val = tc > 0 ? tc : auto;
-                        return val > 0 ? `₺${val.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}` : "—";
-                      })()}
-                      bold
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Notes */}
