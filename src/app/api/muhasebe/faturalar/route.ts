@@ -48,10 +48,12 @@ export async function POST(req: NextRequest) {
 
   const { serviceReportId, customerId, vatRate, lineItems, dueDate, notes, type } = parsed.data;
 
-  // Hesapla
-  const subtotal   = lineItems.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  const vatAmount  = Math.round(subtotal * (vatRate / 100) * 100) / 100;
-  const total      = subtotal + vatAmount;
+  // Per-line KDV hesapla (her satırın kendi oranı var)
+  const subtotal  = lineItems.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+  const vatAmount = Math.round(
+    lineItems.reduce((s, l) => s + l.qty * l.unitPrice * (l.vatRate / 100), 0) * 100
+  ) / 100;
+  const total = subtotal + vatAmount;
 
   // Müşteri snapshot
   const customer = await prisma.customer.findUnique({

@@ -172,25 +172,25 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
 
   // Invoice creation modal
   const [showInvModal, setShowInvModal] = useState(false);
-  const [invVatRate, setInvVatRate] = useState(20);
   const [invDueDate, setInvDueDate] = useState("");
   const [invNotes, setInvNotes]   = useState("");
-  const [invLines, setInvLines]   = useState<{ description: string; qty: number; unitPrice: number }[]>([]);
+  const [invLines, setInvLines]   = useState<{ description: string; qty: number; unitPrice: number; vatRate: number }[]>([]);
   const [invSaving, setInvSaving] = useState(false);
   const [invError, setInvError]   = useState("");
 
   const openInvModal = () => {
     // Pre-populate from report
-    const lines: { description: string; qty: number; unitPrice: number }[] = [];
+    const lines: { description: string; qty: number; unitPrice: number; vatRate: number }[] = [];
     if (report.laborCost && parseFloat(report.laborCost) > 0) {
-      lines.push({ description: "İşçilik", qty: 1, unitPrice: parseFloat(report.laborCost) });
+      lines.push({ description: "İşçilik", qty: 1, unitPrice: parseFloat(report.laborCost), vatRate: 20 });
     }
+    // Servis ücreti satırı (ayrı, boş — kullanıcı dolduracak)
+    lines.push({ description: "Servis Ücreti", qty: 1, unitPrice: 0, vatRate: 20 });
     (report.partsUsed ?? []).forEach((p: PartItem) => {
-      lines.push({ description: p.name, qty: p.quantity, unitPrice: p.unitPrice });
+      lines.push({ description: p.name, qty: p.quantity, unitPrice: p.unitPrice, vatRate: 20 });
     });
-    if (lines.length === 0) lines.push({ description: "", qty: 1, unitPrice: 0 });
+    if (lines.length === 0) lines.push({ description: "", qty: 1, unitPrice: 0, vatRate: 20 });
     setInvLines(lines);
-    setInvVatRate(20);
     setInvDueDate("");
     setInvNotes("");
     setInvError("");
@@ -205,14 +205,19 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
     setInvSaving(true);
     setInvError("");
     try {
+      // Boş fiyatlı satırları filtrele
+      const filteredLines = invLines.filter((l) => l.description.trim() && l.unitPrice > 0);
+      if (filteredLines.length === 0) { setInvError("En az bir kalem girilmelidir."); setInvSaving(false); return; }
+      // Genel KDV: satırların ağırlıklı ortalaması (API için basit değer)
+      const avgVat = Math.round(filteredLines.reduce((s, l) => s + l.vatRate, 0) / filteredLines.length);
       const res = await fetch("/api/muhasebe/faturalar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           serviceReportId: report.id,
           customerId: report.customer.id,
-          vatRate: invVatRate,
-          lineItems: invLines.map((l) => ({ ...l, vatRate: invVatRate })),
+          vatRate: avgVat,
+          lineItems: filteredLines,
           dueDate: invDueDate || undefined,
           notes: invNotes || undefined,
         }),
@@ -271,7 +276,10 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
     if (await patch({ technicianId: techId || null })) setEditTech(false);
   };
   const saveCosts = async () => {
-    if (await patch({ laborCost: parseFloat(laborCost) || 0, partsCost: parseFloat(partsCostVal) || 0, totalCost: parseFloat(totalCostVal) || 0 })) setEditCosts(false);
+    const lc = parseFloat(laborCost) || 0;
+    const pc = parseFloat(partsCostVal) || 0;
+    const tc = lc + pc; // otomatik hesapla
+    if (await patch({ laborCost: lc, partsCost: pc, totalCost: tc })) setEditCosts(false);
   };
   const saveSignatures = async () => {
     setSavingSig(true);
@@ -576,7 +584,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
                   {[
                     { label: "İşçilik (₺)", val: laborCost, set: setLaborCost },
                     { label: "Parça (₺)", val: partsCostVal, set: setPartsCostVal },
-                    { label: "Toplam (₺)", val: totalCostVal, set: setTotalCostVal },
                   ].map(({ label, val, set }) => (
                     <div key={label} className="flex items-center gap-2">
                       <label className="text-xs text-gray-500 w-24">{label}</label>
@@ -589,6 +596,13 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
                       />
                     </div>
                   ))}
+                  {/* Hesaplanan toplam önizleme */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                    <span className="text-xs text-gray-500 w-24">Toplam</span>
+                    <span className="text-xs font-bold text-gray-800">
+                      ₺{((parseFloat(laborCost) || 0) + (parseFloat(partsCostVal) || 0)).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
                   <div className="flex gap-2 pt-1">
                     <button onClick={saveCosts} disabled={saving} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg text-xs disabled:opacity-50">
                       <Save size={12} /> Kaydet
@@ -603,7 +617,17 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
                   <InfoRow label="İşçilik" value={fmtCurrency(report.laborCost)} />
                   <InfoRow label="Parça" value={fmtCurrency(report.partsCost)} />
                   <div className="pt-1 border-t border-gray-100">
-                    <InfoRow label="Toplam" value={fmtCurrency(report.totalCost)} bold />
+                    {/* Toplam = işçilik + parça (totalCost 0 ise otomatik hesapla) */}
+                    <InfoRow
+                      label="Toplam"
+                      value={(() => {
+                        const tc = parseFloat(report.totalCost ?? "0") || 0;
+                        const auto = (parseFloat(report.laborCost ?? "0") || 0) + (parseFloat(report.partsCost ?? "0") || 0);
+                        const val = tc > 0 ? tc : auto;
+                        return val > 0 ? `₺${val.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}` : "—";
+                      })()}
+                      bold
+                    />
                   </div>
                 </div>
               )}
@@ -696,62 +720,57 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
 
               {/* Line items */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-700">Kalemler</label>
-                  <button type="button" onClick={() => setInvLines((l) => [...l, { description: "", qty: 1, unitPrice: 0 }])}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
-                    <Plus size={12} />Satır Ekle
-                  </button>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="grid grid-cols-[1fr_40px_80px_52px_20px] gap-1.5 w-full text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-0.5">
+                    <span>Açıklama</span><span className="text-center">Adet</span><span className="text-right">Birim ₺</span><span className="text-center">KDV%</span><span />
+                  </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {invLines.map((line, i) => (
-                    <div key={i} className="flex gap-2 items-center">
+                    <div key={i} className="grid grid-cols-[1fr_40px_80px_52px_20px] gap-1.5 items-center">
                       <input
                         value={line.description}
                         onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, description: e.target.value } : l))}
-                        placeholder="Açıklama"
-                        className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        placeholder="Servis Ücreti, İşçilik…"
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-0"
                       />
                       <input
                         type="number" min="1" value={line.qty}
                         onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, qty: parseFloat(e.target.value) || 1 } : l))}
-                        className="w-16 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none"
-                        title="Adet"
+                        className="border border-gray-200 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                       <input
                         type="number" min="0" step="0.01" value={line.unitPrice}
                         onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, unitPrice: parseFloat(e.target.value) || 0 } : l))}
-                        placeholder="₺ Fiyat"
-                        className="w-24 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-right focus:outline-none"
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
-                      {invLines.length > 1 && (
-                        <button type="button" onClick={() => setInvLines((ls) => ls.filter((_, j) => j !== i))}
-                          className="p-1 text-gray-400 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {/* KDV % — serbest giriş */}
+                      <div className="relative">
+                        <input
+                          type="number" min="0" max="100" step="1" value={line.vatRate}
+                          onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, vatRate: parseFloat(e.target.value) ?? 0 } : l))}
+                          className="w-full border border-gray-200 rounded-lg pl-1 pr-4 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                        <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
+                      </div>
+                      <button type="button" onClick={() => setInvLines((ls) => ls.filter((_, j) => j !== i))}
+                        className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   ))}
                 </div>
+                <button type="button" onClick={() => setInvLines((l) => [...l, { description: "", qty: 1, unitPrice: 0, vatRate: 20 }])}
+                  className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 transition-colors">
+                  <Plus size={12} />Satır Ekle
+                </button>
               </div>
 
-              {/* KDV + vade */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">KDV Oranı</label>
-                  <select value={invVatRate} onChange={(e) => setInvVatRate(Number(e.target.value))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
-                    <option value={0}>%0 — KDV Yok</option>
-                    <option value={1}>%1</option>
-                    <option value={10}>%10</option>
-                    <option value={20}>%20</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Vade Tarihi</label>
-                  <input type="date" value={invDueDate} onChange={(e) => setInvDueDate(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
-                </div>
+              {/* Vade tarihi */}
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Vade Tarihi</label>
+                <input type="date" value={invDueDate} onChange={(e) => setInvDueDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
               </div>
 
               <div>
@@ -760,15 +779,22 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none" />
               </div>
 
-              {/* Özet */}
+              {/* Özet — per-line KDV hesaplı */}
               {(() => {
-                const sub = invLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-                const vat = sub * invVatRate / 100;
+                const rows = invLines.filter((l) => l.unitPrice > 0);
+                const sub  = rows.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+                const vat  = rows.reduce((s, l) => s + l.qty * l.unitPrice * (l.vatRate / 100), 0);
                 return (
                   <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm space-y-1">
-                    <div className="flex justify-between text-gray-600"><span>Ara Toplam</span><span>₺{sub.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
-                    <div className="flex justify-between text-gray-600"><span>KDV (%{invVatRate})</span><span>₺{vat.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
-                    <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1"><span>Toplam</span><span>₺{(sub + vat).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
+                    {rows.map((l, i) => l.vatRate > 0 && (
+                      <div key={i} className="flex justify-between text-gray-500 text-xs">
+                        <span>{l.description || `Kalem ${i+1}`} KDV (%{l.vatRate})</span>
+                        <span>₺{(l.qty * l.unitPrice * l.vatRate / 100).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-gray-600 border-t border-gray-200 pt-1"><span>Ara Toplam</span><span>₺{sub.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between text-gray-600"><span>Toplam KDV</span><span>₺{vat.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1 text-base"><span>Toplam</span><span>₺{(sub + vat).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
                   </div>
                 );
               })()}
