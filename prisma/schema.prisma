@@ -1054,3 +1054,36 @@ model Position {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ─── ERP: INCOMING INVOICES (Gelen Fatura) ────────────────
+
+enum IncomingInvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+model IncomingInvoice {
+  id            String                @id @default(cuid())
+  invoiceNumber String                // Tedarikçinin fatura numarası
+  supplierName  String
+  supplierTaxNo String?
+  category      String?               // Kira, Elektrik, Malzeme, vb.
+  description   String?               @db.Text
+  subtotal      Decimal               @db.Decimal(10, 2)
+  vatAmount     Decimal               @default(0) @db.Decimal(10, 2)
+  total         Decimal               @db.Decimal(10, 2)
+  paidAmount    Decimal               @default(0) @db.Decimal(10, 2)
+  status        IncomingInvoiceStatus @default(UNPAID)
+  invoiceDate   DateTime              @default(now())
+  dueDate       DateTime?
+  paidAt        DateTime?
+  notes         String?               @db.Text
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceDate])
+}

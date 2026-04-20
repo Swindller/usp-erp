@@ -89,6 +89,16 @@ export default async function MuhasebePage({ searchParams }: Props) {
         })}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <Link href="/muhasebe" className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-900 shadow-sm transition-colors">
+          Giden Faturalar
+        </Link>
+        <Link href="/muhasebe/gelen" className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+          Gelen Faturalar
+        </Link>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <Link href="/muhasebe" className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${!status ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Tümü ({totalCount})</Link>
         {(Object.keys(STATUS_CONFIG) as InvoiceStatus[]).map((s) => (
