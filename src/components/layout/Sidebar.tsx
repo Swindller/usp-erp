@@ -96,7 +96,7 @@ export function Sidebar({ permissions }: SidebarProps) {
             <p className="text-slate-500 text-[10px] truncate">{session?.user?.email ?? ""}</p>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: `${window.location.origin}/giris` })}
+            onClick={async () => { await signOut({ redirect: false }); window.location.href = "/giris"; }}
             title="Çıkış"
             className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-800 transition-colors"
           >
