@@ -1,7 +1,5 @@
 import { cookies } from "next/headers";
 import { decode } from "next-auth/jwt";
-import { getServerSession } from "next-auth";
-import { authOptions } from "./auth";
 import { prisma } from "./prisma";
 
 export interface AuthSession {
@@ -92,15 +90,11 @@ export async function hasPagePermission(
   }
 }
 
-// API route'ları için (req/res tabanlı)
+// API route'ları için — getAppSession() üzerinden JWT decode eder, getServerSession() kullanmaz
 export async function getAuthUser() {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return null;
-    return session.user as { id: string; role: string; email?: string; name?: string };
-  } catch {
-    return null;
-  }
+  const session = await getAppSession();
+  if (!session) return null;
+  return session.user;
 }
 
 export async function requireAuth() {

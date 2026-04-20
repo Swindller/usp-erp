@@ -107,10 +107,14 @@ export default function VergilerPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/vergiler?year=${year}`);
-    const json = await res.json();
-    setData(json);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/vergiler?year=${year}`);
+      const json = await res.json();
+      if (!res.ok || !json.records) { setLoading(false); return; }
+      setData(json);
+    } finally {
+      setLoading(false);
+    }
   }, [year]);
 
   useEffect(() => { load(); }, [load]);

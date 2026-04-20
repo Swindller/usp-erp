@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { TaxStatus } from "@prisma/client";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getAuthUser();

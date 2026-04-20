@@ -68,10 +68,14 @@ export default function DevamsizlikPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/devamsizlik?year=${year}&month=${month}`);
-    const json = await res.json();
-    setData(json);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/devamsizlik?year=${year}&month=${month}`);
+      const json = await res.json();
+      if (!res.ok || !json.personnel) { setLoading(false); return; }
+      setData(json);
+    } finally {
+      setLoading(false);
+    }
   }, [year, month]);
 
   useEffect(() => { load(); }, [load]);

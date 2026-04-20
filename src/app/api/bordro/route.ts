@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 // 2025 Türkiye vergi dilimleri
 function calcIncomeTax(gross: number): number {

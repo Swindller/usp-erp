@@ -87,12 +87,15 @@ export default function PersonelPage() {
 
   const load = async () => {
     setLoading(true);
-    const [pRes, posRes] = await Promise.all([fetch("/api/personel"), fetch("/api/pozisyonlar")]);
-    const pData = await pRes.json();
-    const posData = await posRes.json();
-    setPersonnel(pData.personnel ?? []);
-    setPositions((posData.positions ?? []).filter((p: Position) => p.isActive));
-    setLoading(false);
+    try {
+      const [pRes, posRes] = await Promise.all([fetch("/api/personel"), fetch("/api/pozisyonlar")]);
+      const pData = await pRes.json();
+      const posData = await posRes.json();
+      setPersonnel(pData.personnel ?? []);
+      setPositions((posData.positions ?? []).filter((p: Position) => p.isActive));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);

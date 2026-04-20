@@ -90,10 +90,14 @@ export default function StokPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/stok");
-    const json = await res.json();
-    setData(json);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/stok");
+      const json = await res.json();
+      if (!res.ok || !json.products) { setLoading(false); return; }
+      setData(json);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);

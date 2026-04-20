@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { TaxType, TaxStatus } from "@prisma/client";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser();

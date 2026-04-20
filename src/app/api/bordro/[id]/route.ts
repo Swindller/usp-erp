@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PayrollStatus } from "@prisma/client";
 import { z } from "zod";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 const updateSchema = z.object({
   status: z.nativeEnum(PayrollStatus).optional(),

@@ -101,10 +101,14 @@ export default function BordroPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/bordro?year=${year}&month=${month}`);
-    const json = await res.json();
-    setData(json);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/bordro?year=${year}&month=${month}`);
+      const json = await res.json();
+      if (!res.ok || !json.payrolls) { setLoading(false); return; }
+      setData(json);
+    } finally {
+      setLoading(false);
+    }
   }, [year, month]);
 
   useEffect(() => { load(); }, [load]);
