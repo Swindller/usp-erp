@@ -128,6 +128,7 @@ export default function PersonelPage() {
       phone: p.phone ?? "",
       salary: p.salary != null ? String(p.salary) : "",
       permissions: p.permissions,
+      isAdmin: false,
     });
     setError("");
     setShowModal(true);
