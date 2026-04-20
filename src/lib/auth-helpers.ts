@@ -5,14 +5,20 @@ import { authOptions } from "./auth";
 import { prisma } from "./prisma";
 
 export interface AuthSession {
-  user: { id: string; role: string; email: string; name: string };
+  user: {
+    id: string;
+    role: string;
+    email: string;
+    name: string;
+    permissions: string[];
+  };
 }
 
 const SUPER_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 /**
  * Next.js 15/16 App Router uyumlu session okuyucu.
- * getServerSession yerine JWT cookie'yi doğrudan decode eder.
+ * JWT cookie'yi doğrudan decode eder — DB sorgusu yapmaz.
  */
 export async function getAppSession(): Promise<AuthSession | null> {
   try {
@@ -35,6 +41,7 @@ export async function getAppSession(): Promise<AuthSession | null> {
         role: (decoded.role as string) || "TECHNICIAN",
         email: (decoded.email as string) || "",
         name: (decoded.name as string) || "",
+        permissions: (decoded.permissions as string[]) || [],
       },
     };
   } catch {
@@ -43,9 +50,8 @@ export async function getAppSession(): Promise<AuthSession | null> {
 }
 
 /**
- * Sayfa yetkisi kontrolü.
+ * Sayfa yetkisi kontrolü — JWT'deki permissions listesine bakar.
  * Admin/SuperAdmin → her zaman true.
- * Diğerleri → personnel.permissions içinde permKey var mı?
  */
 export async function hasPagePermission(
   userId: string,
@@ -54,6 +60,7 @@ export async function hasPagePermission(
 ): Promise<boolean> {
   if (SUPER_ROLES.includes(role)) return true;
   try {
+    // Önce DB'den taze kontrol et (JWT cache'i by-pass)
     const personnel = await prisma.personnel.findFirst({
       where: { userId },
       select: { permissions: true },
