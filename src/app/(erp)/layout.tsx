@@ -15,12 +15,20 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
 
   // Admin her şeyi görür — personnel kaydına gerek yok
   let permissions: string[] = [];
-  if (!ADMIN_ROLES.includes(role ?? "") && session.user?.email) {
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: { personnel: { select: { permissions: true } } },
-    });
-    permissions = user?.personnel?.permissions ?? [];
+  if (!ADMIN_ROLES.includes(role ?? "")) {
+    const userId = (session.user as { id?: string })?.id;
+    if (userId) {
+      try {
+        const personnel = await prisma.personnel.findFirst({
+          where: { userId },
+          select: { permissions: true },
+        });
+        permissions = personnel?.permissions ?? [];
+      } catch (e) {
+        console.error("[layout] permissions fetch error:", e);
+        permissions = [];
+      }
+    }
   }
 
   return (
