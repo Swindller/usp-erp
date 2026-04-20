@@ -6,7 +6,7 @@ import { ServiceStatus, ServiceType, CustomerType, ServiceLogType } from "@prism
 import {
   ChevronLeft, Edit3, Save, X,
   User, Building2, Phone, Wrench,
-  Calendar, Clock, Shield, FileText, Download,
+  Calendar, Clock, Shield, FileText, Download, Receipt, Plus, Trash2,
 } from "lucide-react";
 import { ServiceStatusBadge, STATUS_CONFIG } from "./ServiceStatusBadge";
 import { ServiceLogPanel } from "./ServiceLogPanel";
@@ -170,6 +170,68 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
   const [techSig, setTechSig] = useState<string | null>(report.technicianSignature);
   const [savingSig, setSavingSig] = useState(false);
 
+  // Invoice creation modal
+  const [showInvModal, setShowInvModal] = useState(false);
+  const [invVatRate, setInvVatRate] = useState(20);
+  const [invDueDate, setInvDueDate] = useState("");
+  const [invNotes, setInvNotes]   = useState("");
+  const [invLines, setInvLines]   = useState<{ description: string; qty: number; unitPrice: number }[]>([]);
+  const [invSaving, setInvSaving] = useState(false);
+  const [invError, setInvError]   = useState("");
+
+  const openInvModal = () => {
+    // Pre-populate from report
+    const lines: { description: string; qty: number; unitPrice: number }[] = [];
+    if (report.laborCost && parseFloat(report.laborCost) > 0) {
+      lines.push({ description: "İşçilik", qty: 1, unitPrice: parseFloat(report.laborCost) });
+    }
+    (report.partsUsed ?? []).forEach((p: PartItem) => {
+      lines.push({ description: p.name, qty: p.quantity, unitPrice: p.unitPrice });
+    });
+    if (lines.length === 0) lines.push({ description: "", qty: 1, unitPrice: 0 });
+    setInvLines(lines);
+    setInvVatRate(20);
+    setInvDueDate("");
+    setInvNotes("");
+    setInvError("");
+    setShowInvModal(true);
+  };
+
+  const createInvoice = async () => {
+    if (invLines.some((l) => !l.description || l.unitPrice < 0)) {
+      setInvError("Tüm satırların açıklaması ve fiyatı girilmelidir.");
+      return;
+    }
+    setInvSaving(true);
+    setInvError("");
+    try {
+      const res = await fetch("/api/muhasebe/faturalar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceReportId: report.id,
+          customerId: report.customer.id,
+          vatRate: invVatRate,
+          lineItems: invLines.map((l) => ({ ...l, vatRate: invVatRate })),
+          dueDate: invDueDate || undefined,
+          notes: invNotes || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setInvError(typeof data.error === "string" ? data.error : "Fatura oluşturulamadı"); return; }
+      const inv = data.invoice;
+      setReport((r) => ({
+        ...r,
+        invoices: [...r.invoices, { id: inv.id, invoiceNumber: inv.invoiceNumber, status: inv.status, total: String(inv.total) }],
+      }));
+      setShowInvModal(false);
+    } catch {
+      setInvError("Bağlantı hatası");
+    } finally {
+      setInvSaving(false);
+    }
+  };
+
   const patch = async (data: Record<string, unknown>) => {
     setSaving(true);
     setSaveError("");
@@ -244,6 +306,15 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
               >
                 <Download size={13} />PDF İndir
               </a>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={openInvModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-green-300 bg-green-50 hover:bg-green-100 transition-colors text-xs font-medium text-green-700"
+                >
+                  <Receipt size={13} />Fatura Oluştur
+                </button>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-500">
@@ -549,18 +620,24 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
 
           {/* Invoices */}
           {report.invoices.length > 0 && (
-            <InfoCard icon={<FileText size={15} />} title="Faturalar">
-              {report.invoices.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between text-sm">
-                  <span className="font-mono text-gray-600">{inv.invoiceNumber}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-800 font-medium">
-                      ₺{parseFloat(inv.total).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-xs text-gray-400">{inv.status}</span>
+            <InfoCard icon={<Receipt size={15} />} title="Faturalar">
+              {report.invoices.map((inv) => {
+                const STATUS_TR: Record<string, string> = { DRAFT: "Taslak", SENT: "Gönderildi", PARTIALLY_PAID: "Kısmi Ödeme", PAID: "Ödendi", OVERDUE: "Gecikmiş", CANCELLED: "İptal" };
+                const statusColor: Record<string, string> = { PAID: "text-green-600 bg-green-50", OVERDUE: "text-red-600 bg-red-50", DRAFT: "text-gray-500 bg-gray-100", SENT: "text-blue-600 bg-blue-50", PARTIALLY_PAID: "text-yellow-700 bg-yellow-50", CANCELLED: "text-gray-400 bg-gray-100" };
+                return (
+                  <div key={inv.id} className="flex items-center justify-between text-sm py-0.5">
+                    <a href={`/muhasebe/fatura/${inv.id}`} className="font-mono text-blue-600 hover:underline">{inv.invoiceNumber}</a>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-800 font-medium">
+                        ₺{parseFloat(inv.total).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${statusColor[inv.status] ?? "text-gray-400 bg-gray-100"}`}>
+                        {STATUS_TR[inv.status] ?? inv.status}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </InfoCard>
           )}
         </div>
@@ -603,6 +680,107 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
               {savingSig ? "Kaydediliyor..." : "İmzaları Kaydet"}
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Fatura Oluştur Modal ── */}
+      {showInvModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><Receipt size={16} className="text-green-600" />Fatura Oluştur</h3>
+              <button onClick={() => setShowInvModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} className="text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {invError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">{invError}</div>}
+
+              {/* Line items */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-gray-700">Kalemler</label>
+                  <button type="button" onClick={() => setInvLines((l) => [...l, { description: "", qty: 1, unitPrice: 0 }])}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
+                    <Plus size={12} />Satır Ekle
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {invLines.map((line, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        value={line.description}
+                        onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, description: e.target.value } : l))}
+                        placeholder="Açıklama"
+                        className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                      <input
+                        type="number" min="1" value={line.qty}
+                        onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, qty: parseFloat(e.target.value) || 1 } : l))}
+                        className="w-16 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none"
+                        title="Adet"
+                      />
+                      <input
+                        type="number" min="0" step="0.01" value={line.unitPrice}
+                        onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, unitPrice: parseFloat(e.target.value) || 0 } : l))}
+                        placeholder="₺ Fiyat"
+                        className="w-24 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-right focus:outline-none"
+                      />
+                      {invLines.length > 1 && (
+                        <button type="button" onClick={() => setInvLines((ls) => ls.filter((_, j) => j !== i))}
+                          className="p-1 text-gray-400 hover:text-red-500">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* KDV + vade */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">KDV Oranı</label>
+                  <select value={invVatRate} onChange={(e) => setInvVatRate(Number(e.target.value))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                    <option value={0}>%0 — KDV Yok</option>
+                    <option value={1}>%1</option>
+                    <option value={10}>%10</option>
+                    <option value={20}>%20</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Vade Tarihi</label>
+                  <input type="date" value={invDueDate} onChange={(e) => setInvDueDate(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Notlar</label>
+                <textarea value={invNotes} onChange={(e) => setInvNotes(e.target.value)} rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none" />
+              </div>
+
+              {/* Özet */}
+              {(() => {
+                const sub = invLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+                const vat = sub * invVatRate / 100;
+                return (
+                  <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm space-y-1">
+                    <div className="flex justify-between text-gray-600"><span>Ara Toplam</span><span>₺{sub.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between text-gray-600"><span>KDV (%{invVatRate})</span><span>₺{vat.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1"><span>Toplam</span><span>₺{(sub + vat).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span></div>
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setShowInvModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">İptal</button>
+              <button onClick={createInvoice} disabled={invSaving}
+                className="flex-1 py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+                {invSaving ? "Oluşturuluyor..." : "Fatura Oluştur"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

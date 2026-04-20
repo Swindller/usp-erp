@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Users, Building2, User, Search, Plus, Edit2, Trash2, X, Phone, Mail, MapPin } from "lucide-react";
+import { Users, Building2, User, Search, Plus, Edit2, Trash2, X, Phone, Mail, MapPin, Wrench, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
 
 type CustomerType = "INDIVIDUAL" | "CORPORATE";
 
@@ -29,6 +29,26 @@ const defaultForm = {
   phone: "", phone2: "", email: "", address: "", city: "", district: "", notes: "",
 };
 
+interface Maintenance {
+  id: string;
+  description: string;
+  lastDate: string;
+  nextDate: string;
+  periodMonths: number;
+  isActive: boolean;
+  notes: string | null;
+}
+
+const PERIOD_OPTIONS = [
+  { value: 1,  label: "Aylık" },
+  { value: 3,  label: "3 Ayda Bir" },
+  { value: 6,  label: "6 Ayda Bir" },
+  { value: 12, label: "Yıllık" },
+  { value: 24, label: "2 Yılda Bir" },
+];
+
+const defaultBakimForm = { description: "", startDate: "", periodMonths: 12, notes: "" };
+
 export default function MusterilerPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -42,6 +62,15 @@ export default function MusterilerPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+
+  // Bakım state
+  const [bakimCustomer, setBakimCustomer]   = useState<Customer | null>(null);
+  const [maintenances, setMaintenances]     = useState<Maintenance[]>([]);
+  const [bakimLoading, setBakimLoading]     = useState(false);
+  const [showBakimForm, setShowBakimForm]   = useState(false);
+  const [bakimForm, setBakimForm]           = useState(defaultBakimForm);
+  const [bakimSaving, setBakimSaving]       = useState(false);
+  const [bakimError, setBakimError]         = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +140,46 @@ export default function MusterilerPage() {
   const customerName = (c: Customer) =>
     c.type === "CORPORATE" ? c.companyName || "Kurumsal" : [c.firstName, c.lastName].filter(Boolean).join(" ") || "İsimsiz";
 
+  const openBakim = async (c: Customer) => {
+    setBakimCustomer(c);
+    setBakimLoading(true);
+    setShowBakimForm(false);
+    setBakimForm(defaultBakimForm);
+    setBakimError("");
+    const res = await fetch(`/api/musteriler/${c.id}/bakim`);
+    const data = await res.json();
+    setMaintenances(data.maintenances ?? []);
+    setBakimLoading(false);
+  };
+
+  const saveBakim = async () => {
+    if (!bakimCustomer) return;
+    if (!bakimForm.description) { setBakimError("Sistem açıklaması zorunludur."); return; }
+    if (!bakimForm.startDate)   { setBakimError("Başlangıç tarihi zorunludur."); return; }
+    setBakimSaving(true);
+    setBakimError("");
+    try {
+      const res = await fetch(`/api/musteriler/${bakimCustomer.id}/bakim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bakimForm),
+      });
+      const data = await res.json();
+      if (!res.ok) { setBakimError(typeof data.error === "string" ? data.error : "Hata"); return; }
+      setMaintenances((m) => [...m, data.maintenance]);
+      setBakimForm(defaultBakimForm);
+      setShowBakimForm(false);
+    } finally { setBakimSaving(false); }
+  };
+
+  const deleteBakim = async (maintenanceId: string) => {
+    if (!bakimCustomer) return;
+    await fetch(`/api/musteriler/${bakimCustomer.id}/bakim?maintenanceId=${maintenanceId}`, { method: "DELETE" });
+    setMaintenances((m) => m.filter((x) => x.id !== maintenanceId));
+  };
+
+  const fmt = (d: string) => new Date(d).toLocaleDateString("tr-TR");
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -157,6 +226,7 @@ export default function MusterilerPage() {
                     <p className="text-xs text-gray-400">{c.type === "CORPORATE" ? "Kurumsal" : "Şahıs"}</p>
                   </div>
                   <div className="flex gap-1">
+                    <button onClick={() => openBakim(c)} title="Periyodik Bakım" className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"><CalendarDays size={14} /></button>
                     <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
                     <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
                   </div>
@@ -275,6 +345,129 @@ export default function MusterilerPage() {
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {saving ? "Kaydediliyor..." : editTarget ? "Güncelle" : "Müşteri Ekle"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Periyodik Bakım Modal ── */}
+      {bakimCustomer && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <CalendarDays size={16} className="text-green-600" />Periyodik Bakım Planı
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">{customerName(bakimCustomer)}</p>
+              </div>
+              <button onClick={() => setBakimCustomer(null)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} className="text-gray-500" /></button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              {bakimError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">{bakimError}</div>}
+
+              {/* Mevcut bakım kayıtları */}
+              {bakimLoading ? (
+                <div className="py-6 text-center"><div className="animate-spin w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full mx-auto" /></div>
+              ) : maintenances.length === 0 ? (
+                <div className="py-6 text-center text-sm text-gray-400 flex flex-col items-center gap-2">
+                  <Wrench size={28} className="text-gray-300" />
+                  Henüz bakım planı yok
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {maintenances.map((m) => {
+                    const isOverdue = new Date(m.nextDate) < new Date();
+                    const period = PERIOD_OPTIONS.find((p) => p.value === m.periodMonths)?.label ?? `${m.periodMonths} aylık`;
+                    return (
+                      <div key={m.id} className={`border rounded-xl p-3 ${isOverdue ? "border-orange-200 bg-orange-50" : "border-gray-200 bg-gray-50"}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">{m.description}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                              <span className="flex items-center gap-1"><CalendarDays size={10} />İlk: {fmt(m.lastDate)}</span>
+                              <span className={`flex items-center gap-1 font-medium ${isOverdue ? "text-orange-600" : "text-green-600"}`}>
+                                Sonraki: {fmt(m.nextDate)} {isOverdue ? "⚠ Gecikmiş" : ""}
+                              </span>
+                              <span>{period}</span>
+                            </div>
+                            {m.notes && <p className="text-xs text-gray-400 mt-1">{m.notes}</p>}
+                          </div>
+                          <button onClick={() => deleteBakim(m.id)} className="p-1 text-gray-300 hover:text-red-500 flex-shrink-0"><Trash2 size={13} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Yeni bakım formu */}
+              <div className="border border-dashed border-gray-300 rounded-xl overflow-hidden">
+                <button type="button" onClick={() => setShowBakimForm((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors">
+                  <span className="flex items-center gap-2"><Plus size={14} />Yeni Bakım Planı Ekle</span>
+                  {showBakimForm ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {showBakimForm && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-gray-200 pt-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-1">Devriye Alınacak Sistemler / Açıklama *</label>
+                      <textarea
+                        value={bakimForm.description}
+                        onChange={(e) => setBakimForm((f) => ({ ...f, description: e.target.value }))}
+                        rows={3}
+                        placeholder="Örn: Grundfos CM5 pompa, basınç tankı, filtre sistemi, elektrik panosu kontrol..."
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">İlk Bakım Tarihi *</label>
+                        <input
+                          type="date"
+                          value={bakimForm.startDate}
+                          onChange={(e) => setBakimForm((f) => ({ ...f, startDate: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Bakım Sıklığı</label>
+                        <select
+                          value={bakimForm.periodMonths}
+                          onChange={(e) => setBakimForm((f) => ({ ...f, periodMonths: Number(e.target.value) }))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        >
+                          {PERIOD_OPTIONS.map((p) => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-1">Ek Notlar</label>
+                      <input
+                        value={bakimForm.notes}
+                        onChange={(e) => setBakimForm((f) => ({ ...f, notes: e.target.value }))}
+                        placeholder="Özel talimatlar, müşteri tercihleri..."
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <button onClick={saveBakim} disabled={bakimSaving}
+                      className="w-full py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+                      {bakimSaving ? "Kaydediliyor..." : "Bakım Planını Kaydet"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setBakimCustomer(null)} className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Kapat</button>
             </div>
           </div>
         </div>

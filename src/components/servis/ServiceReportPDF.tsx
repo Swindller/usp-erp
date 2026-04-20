@@ -12,12 +12,12 @@ Font.register({
   ],
 });
 
-const blue       = "#1e40af";
-const darkBlue   = "#1e3a8a";
-const lightGray  = "#f3f4f6";
+const blue        = "#1e40af";
+const darkBlue    = "#1e3a8a";
+const lightGray   = "#f3f4f6";
 const borderColor = "#9ca3af";
-const gray       = "#6b7280";
-const black      = "#000000";
+const gray        = "#6b7280";
+const black       = "#000000";
 
 const s = StyleSheet.create({
   page: {
@@ -28,16 +28,14 @@ const s = StyleSheet.create({
 
   // ── Header ───────────────────────────────────────────────────────────────
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 },
-
   logoBox: { flexDirection: "column" },
-  logoTitle: { fontSize: 13, fontWeight: 700, color: blue, letterSpacing: 0.5 },
-  logoSub:   { fontSize: 6.5, color: darkBlue, marginTop: 2 },
+  logoTitle:   { fontSize: 13, fontWeight: 700, color: blue, letterSpacing: 0.5 },
+  logoSub:     { fontSize: 6.5, color: darkBlue, marginTop: 2 },
   logoCompany: { fontSize: 6, color: gray, marginTop: 1 },
-
-  rightBox: { alignItems: "flex-end", borderWidth: 1, borderColor: blue, padding: "4 8", borderRadius: 3 },
+  rightBox:      { alignItems: "flex-end", borderWidth: 1, borderColor: blue, padding: "4 8", borderRadius: 3 },
   grundfosTitle: { fontSize: 7, fontWeight: 700, color: blue },
   grundfosLine:  { fontSize: 6, color: gray },
-  hotline: { fontSize: 11, fontWeight: 700, color: darkBlue, marginTop: 2 },
+  hotline:       { fontSize: 11, fontWeight: 700, color: darkBlue, marginTop: 2 },
 
   // ── Section header ────────────────────────────────────────────────────────
   sectionHeader: {
@@ -52,23 +50,22 @@ const s = StyleSheet.create({
   rowLast:  { flexDirection: "row", minHeight: 14 },
   cell:     { borderRightWidth: 1, borderRightColor: borderColor, padding: "2 3", justifyContent: "center" },
   cellLast: { padding: "2 3", justifyContent: "center" },
-
   label:      { fontWeight: 700, fontSize: 7, color: darkBlue },
   value:      { fontSize: 7.5, color: black, marginTop: 1 },
   headerCell: { backgroundColor: blue, padding: "3 4", justifyContent: "center" },
   headerText: { fontWeight: 700, fontSize: 7.5, color: "#ffffff" },
 
   // ── Checkbox ──────────────────────────────────────────────────────────────
-  checkRow:      { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
-  checkItem:     { flexDirection: "row", alignItems: "center", gap: 2 },
-  checkBox:      { width: 8, height: 8, border: "1 solid #374151", borderRadius: 1 },
-  checkBoxFilled:{ width: 8, height: 8, backgroundColor: blue, borderRadius: 1 },
-  checkLabel:    { fontSize: 7 },
+  checkRow:       { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
+  checkItem:      { flexDirection: "row", alignItems: "center", gap: 2 },
+  checkBox:       { width: 8, height: 8, border: "1 solid #374151", borderRadius: 1 },
+  checkBoxFilled: { width: 8, height: 8, backgroundColor: blue, borderRadius: 1 },
+  checkLabel:     { fontSize: 7 },
 
   // ── Footer ────────────────────────────────────────────────────────────────
-  footer:      { marginTop: 8, borderTopWidth: 1, borderTopColor: borderColor, paddingTop: 4 },
-  footerText:  { fontSize: 6, color: gray, textAlign: "center" },
-  footerBold:  { fontWeight: 700 },
+  footer:     { marginTop: 8, borderTopWidth: 1, borderTopColor: borderColor, paddingTop: 4 },
+  footerText: { fontSize: 6, color: gray, textAlign: "center" },
+  footerBold: { fontWeight: 700 },
 
   // ── Signature area ────────────────────────────────────────────────────────
   signArea:     { flexDirection: "row", marginTop: 4, border: 1, borderColor: borderColor },
@@ -135,7 +132,7 @@ function Checkbox({ checked, label }: { checked: boolean; label: string }) {
       <View style={checked ? s.checkBoxFilled : s.checkBox}>
         {checked && (
           <Text style={{ fontSize: 5.5, color: "#fff", textAlign: "center", lineHeight: 1.4 }}>
-            {"\u2713"}
+            ✓
           </Text>
         )}
       </View>
@@ -150,20 +147,20 @@ function splitLines(text: string | null, max = 9): string[] {
 }
 
 function fmtDate(d: string | Date | null) {
-  if (!d) return "\u2014";
+  if (!d) return "—";
   return new Date(d).toLocaleDateString("tr-TR");
 }
 
 function customerName(c: ReportPDFProps["report"]["customer"]) {
-  if (c.type === "CORPORATE") return c.companyName || "\u2014";
-  return [c.firstName, c.lastName].filter(Boolean).join(" ") || "\u2014";
+  if (c.type === "CORPORATE") return c.companyName || "—";
+  return [c.firstName, c.lastName].filter(Boolean).join(" ") || "—";
 }
 
 function fmtTL(val: string | number | null | undefined): string {
-  if (val === null || val === undefined || val === "") return "\u2014";
+  if (val === null || val === undefined || val === "") return "—";
   const n = typeof val === "number" ? val : parseFloat(val);
-  if (isNaN(n)) return "\u2014";
-  return "\u20BA" + n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (isNaN(n)) return "—";
+  return "₺" + n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
@@ -173,26 +170,27 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   PERIODIC: "Periyodik",
 };
 
+// Status listesi — düz string (JSX'te escape yok)
 const STATUS_LIST = [
-  { key: "RECEIVED",      label: "S\u0131ra Bekliyor" },
-  { key: "DIAGNOSING",    label: "Serviste Onaylan\u0131yor" },
-  { key: "WAITING_PARTS", label: "Par\u00E7a Bekliyor" },
-  { key: "IN_REPAIR",     label: "Onar\u0131mda" },
-  { key: "QUALITY_CHECK", label: "Kontrol A\u015Famas\u0131nda" },
-  { key: "READY",         label: "Haz\u0131r" },
+  { key: "RECEIVED",      label: "Sıra Bekliyor" },
+  { key: "DIAGNOSING",    label: "Serviste Onaylanıyor" },
+  { key: "WAITING_PARTS", label: "Parça Bekliyor" },
+  { key: "IN_REPAIR",     label: "Onarımda" },
+  { key: "QUALITY_CHECK", label: "Kontrol Aşamasında" },
+  { key: "READY",         label: "Hazır" },
   { key: "DELIVERED",     label: "Teslim Edildi" },
-  { key: "CANCELLED",     label: "\u0130ptal" },
+  { key: "CANCELLED",     label: "İptal" },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ServiceReportPDF({ report }: ReportPDFProps) {
-  const c        = report.customer;
-  const diagnoses = splitLines(report.diagnosis);
+  const c          = report.customer;
+  const diagnoses  = splitLines(report.diagnosis);
   const operations = splitLines(report.operations);
-  const parts    = (report.partsUsed ?? []) as PartItem[];
-  const techName = report.technician
+  const parts      = (report.partsUsed ?? []) as PartItem[];
+  const techName   = report.technician
     ? [report.technician.user.firstName, report.technician.user.lastName].filter(Boolean).join(" ")
-    : "\u2014";
+    : "—";
 
   return (
     <Document>
@@ -201,18 +199,14 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.logoBox}>
-            <Text style={s.logoTitle}>U\u011EUR SU POMPALARI</Text>
-            <Text style={s.logoSub}>
-              ELEKTRİK İNŞAAT TARIM HAYVANCILIK SAN. VE TİC. LTD. ŞTİ.
-            </Text>
-            <Text style={s.logoCompany}>
-              Grundfos İç Anadolu Bölgesi Yetkili Servisi
-            </Text>
+            <Text style={s.logoTitle}>UĞUR SU POMPALARI</Text>
+            <Text style={s.logoSub}>ELEKTRİK İNŞAAT TARIM HAYVANCILIK SAN. VE TİC. LTD. ŞTİ.</Text>
+            <Text style={s.logoCompany}>Grundfos İç Anadolu Bölgesi Yetkili Servisi</Text>
           </View>
           <View style={s.rightBox}>
             <Text style={s.grundfosTitle}>DENETİMLİ GRUNDFOS YETKİLİ SERVİSİ</Text>
             <Text style={s.grundfosLine}>servis@ugursupompalari.com.tr</Text>
-            <Text style={s.hotline}>Ar\u0131za \u0130hbar: 0549 629 19 12</Text>
+            <Text style={s.hotline}>Arıza İhbar: 0549 629 19 12</Text>
           </View>
         </View>
 
@@ -223,35 +217,21 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
               <Text style={s.label}>Teknik Servis Raporu</Text>
             </View>
             <View style={[s.cell, { flex: 2 }]}>
-              <Text style={s.label}>
-                Doküman No:{" "}
-                <Text style={s.value}>{report.reportNumber}</Text>
-              </Text>
+              <Text style={s.label}>Doküman No: <Text style={s.value}>{report.reportNumber}</Text></Text>
             </View>
             <View style={[s.cell, { flex: 1.5 }]}>
-              <Text style={s.label}>
-                Revizyon No: <Text style={s.value}>00</Text>
-              </Text>
+              <Text style={s.label}>Revizyon No: <Text style={s.value}>00</Text></Text>
             </View>
             <View style={[s.cellLast, { flex: 2 }]}>
-              <Text style={s.label}>
-                Yay\u0131n Tarihi:{" "}
-                <Text style={s.value}>{fmtDate(report.receivedAt)}</Text>
-              </Text>
+              <Text style={s.label}>Yayın Tarihi: <Text style={s.value}>{fmtDate(report.receivedAt)}</Text></Text>
             </View>
           </View>
           <View style={s.row}>
             <View style={[s.cell, { flex: 4 }]}>
-              <Text style={s.label}>
-                Servis İste\u011Finin İletim Şekli:{" "}
-                <Text style={s.value}>{SERVICE_TYPE_LABELS[report.serviceType] ?? report.serviceType}</Text>
-              </Text>
+              <Text style={s.label}>Servis İsteğinin İletim Şekli: <Text style={s.value}>{SERVICE_TYPE_LABELS[report.serviceType] ?? report.serviceType}</Text></Text>
             </View>
             <View style={[s.cellLast, { flex: 4.5 }]}>
-              <Text style={s.label}>
-                Tarih (G - Giri\u015F):{" "}
-                <Text style={s.value}>{fmtDate(report.receivedAt)}</Text>
-              </Text>
+              <Text style={s.label}>Tarih (G - Giriş): <Text style={s.value}>{fmtDate(report.receivedAt)}</Text></Text>
             </View>
           </View>
         </View>
@@ -261,18 +241,18 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         <View style={s.table}>
           <View style={s.row}>
             <View style={[s.cell, { flex: 1 }]}>
-              <Text style={s.label}>Ad\u0131 / Projesi</Text>
+              <Text style={s.label}>Adı / Projesi</Text>
               <Text style={s.value}>{customerName(c)}</Text>
             </View>
             <View style={[s.cellLast, { flex: 1 }]}>
-              <Text style={s.label}>Tarih (\u00C7 - \u00C7\u0131k\u0131\u015F)</Text>
+              <Text style={s.label}>Tarih (Ç - Çıkış)</Text>
               <Text style={s.value}>{fmtDate(report.completedAt)}</Text>
             </View>
           </View>
           <View style={s.row}>
             <View style={[s.cell, { flex: 1 }]}>
               <Text style={s.label}>Adres</Text>
-              <Text style={s.value}>{[c.address, c.district, c.city].filter(Boolean).join(", ") || "\u2014"}</Text>
+              <Text style={s.value}>{[c.address, c.district, c.city].filter(Boolean).join(", ") || "—"}</Text>
             </View>
             <View style={[s.cellLast, { flex: 1 }]}>
               <Text style={s.label}>Telefon</Text>
@@ -282,11 +262,11 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
           <View style={s.rowLast}>
             <View style={[s.cell, { flex: 1 }]}>
               <Text style={s.label}>Vergi Dairesi</Text>
-              <Text style={s.value}>{c.taxOffice || "\u2014"}</Text>
+              <Text style={s.value}>{c.taxOffice || "—"}</Text>
             </View>
             <View style={[s.cellLast, { flex: 1 }]}>
               <Text style={s.label}>E-Mail</Text>
-              <Text style={s.value}>{c.email || "\u2014"}</Text>
+              <Text style={s.value}>{c.email || "—"}</Text>
             </View>
           </View>
         </View>
@@ -296,26 +276,26 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         <View style={s.table}>
           <View style={s.row}>
             <View style={[s.cell, { flex: 1 }]}>
-              <Text style={s.label}>Ürün No / Markas\u0131</Text>
-              <Text style={s.value}>{report.deviceBrand || "\u2014"}</Text>
+              <Text style={s.label}>Ürün No / Markası</Text>
+              <Text style={s.value}>{report.deviceBrand || "—"}</Text>
             </View>
             <View style={[s.cellLast, { flex: 1 }]}>
               <Text style={s.label}>Modeli</Text>
-              <Text style={s.value}>{report.deviceModel || "\u2014"}</Text>
+              <Text style={s.value}>{report.deviceModel || "—"}</Text>
             </View>
           </View>
           <View style={s.rowLast}>
             <View style={[s.cell, { flex: 1 }]}>
               <Text style={s.label}>Seri No</Text>
-              <Text style={s.value}>{report.deviceSerial || "\u2014"}</Text>
+              <Text style={s.value}>{report.deviceSerial || "—"}</Text>
             </View>
             <View style={[s.cell, { flex: 1 }]}>
-              <Text style={s.label}>Üretim Tarihi / Y\u0131l\u0131</Text>
-              <Text style={s.value}>{report.deviceYear ? String(report.deviceYear) : "\u2014"}</Text>
+              <Text style={s.label}>Üretim Tarihi / Yılı</Text>
+              <Text style={s.value}>{report.deviceYear ? String(report.deviceYear) : "—"}</Text>
             </View>
             <View style={[s.cellLast, { flex: 1 }]}>
               <Text style={s.label}>Güç / Gerilim</Text>
-              <Text style={s.value}>{report.devicePower || "\u2014"}</Text>
+              <Text style={s.value}>{report.devicePower || "—"}</Text>
             </View>
           </View>
         </View>
@@ -323,8 +303,8 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         {/* ── Not ── */}
         <View style={{ backgroundColor: lightGray, padding: "4 6", marginTop: 4, borderRadius: 2 }}>
           <Text style={{ fontSize: 6.5, color: gray }}>
-            ( Bu K\u0131s\u0131m U\u011EUR SU POMPALARI LTD. \u015ET\u0130. Taraf\u0131ndan Doldurulacakt\u0131r.
-            Ar\u0131zan\u0131n Meydana Gelmesi ve Yap\u0131lacak \u0130\u015Flemler K\u0131saca Belirtilecektir. )
+            ( Bu Kısım UĞUR SU POMPALARI LTD. ŞTİ. Tarafından Doldurulacaktır.
+            Arızanın Meydana Gelmesi ve Yapılacak İşlemler Kısaca Belirtilecektir. )
           </Text>
         </View>
 
@@ -333,7 +313,7 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
           <View style={s.rowLast}>
             <View style={[s.cellLast, { flex: 1 }]}>
               <Text style={s.label}>Müşteri Şikayeti</Text>
-              <Text style={[s.value, { marginTop: 2 }]}>{report.complaint || "\u2014"}</Text>
+              <Text style={[s.value, { marginTop: 2 }]}>{report.complaint || "—"}</Text>
             </View>
           </View>
         </View>
@@ -342,15 +322,15 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         <View style={[s.table, { marginTop: 4 }]}>
           <View style={s.row}>
             <View style={[s.headerCell, { flex: 1 }]}>
-              <Text style={s.headerText}>Tespit Edilen Ar\u0131zalar</Text>
+              <Text style={s.headerText}>Tespit Edilen Arızalar</Text>
             </View>
             <View style={[s.headerCell, { flex: 1, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
-              <Text style={s.headerText}>Yap\u0131lacak İşler</Text>
+              <Text style={s.headerText}>Yapılacak İşler</Text>
             </View>
           </View>
           {Array.from({ length: 9 }).map((_, i) => {
-            const diag = diagnoses[i] ?? "";
-            const op   = operations[i] ?? "";
+            const diag   = diagnoses[i] ?? "";
+            const op     = operations[i] ?? "";
             const isLast = i === 8;
             return (
               <View key={i} style={isLast ? s.rowLast : s.row}>
@@ -370,7 +350,7 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
           <View style={[s.table, { marginTop: 4 }]}>
             <View style={s.rowLast}>
               <View style={[s.cellLast, { flex: 1, minHeight: 18 }]}>
-                <Text style={s.label}>Ki\u015Fisel Dü\u015Fünceler / Notlar</Text>
+                <Text style={s.label}>Kişisel Düşünceler / Notlar</Text>
                 <Text style={[s.value, { marginTop: 2 }]}>{report.internalNotes}</Text>
               </View>
             </View>
@@ -384,7 +364,7 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
               <Text style={s.headerText}>Ürünün Durumu</Text>
             </View>
             <View style={[s.headerCell, { flex: 1, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
-              <Text style={s.headerText}>Bak\u0131m Şekli</Text>
+              <Text style={s.headerText}>Bakım Şekli</Text>
             </View>
             <View style={[s.headerCell, { flex: 1, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
               <Text style={s.headerText}>Müdahale Yeri</Text>
@@ -401,7 +381,7 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
             <View style={[s.cell, { flex: 1, padding: "4 6" }]}>
               <View style={s.checkRow}>
                 <Checkbox checked={report.isWarranty}  label="Garantili" />
-                <Checkbox checked={!report.isWarranty} label="Garanti D\u0131\u015F\u0131" />
+                <Checkbox checked={!report.isWarranty} label="Garanti Dışı" />
               </View>
             </View>
             <View style={[s.cellLast, { flex: 1, padding: "4 6" }]}>
@@ -421,10 +401,10 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
               <Text style={s.headerText}>Kodu</Text>
             </View>
             <View style={[s.headerCell, { flex: 3, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
-              <Text style={s.headerText}>Ad\u0131</Text>
+              <Text style={s.headerText}>Adı</Text>
             </View>
             <View style={[s.headerCell, { flex: 1.5, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
-              <Text style={s.headerText}>Bedeli (KDV Hari\u00E7)</Text>
+              <Text style={s.headerText}>Bedeli (KDV Hariç)</Text>
             </View>
           </View>
           {Array.from({ length: 5 }).map((_, i) => {
@@ -434,7 +414,7 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
             return (
               <View key={i} style={isLast ? s.rowLast : s.row}>
                 <View style={[s.cell, { flex: 1, minHeight: 12 }]}>
-                  <Text style={s.value}>{i + 1}: {part ? (part.productId?.slice(0, 8) ?? "\u2014") : ""}</Text>
+                  <Text style={s.value}>{i + 1}: {part ? (part.productId?.slice(0, 8) ?? "—") : ""}</Text>
                 </View>
                 <View style={[s.cell, { flex: 3, minHeight: 12 }]}>
                   <Text style={s.value}>{part?.name ?? ""}</Text>
@@ -451,13 +431,13 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         <View style={[s.table, { marginTop: 4 }]}>
           <View style={s.rowLast}>
             <View style={[s.cell, { flex: 1, padding: "4 6" }]}>
-              <Text style={s.label}>Ödeme Şekli: (KDV Hari\u00E7)</Text>
+              <Text style={s.label}>Ödeme Şekli: (KDV Hariç)</Text>
               <View style={[s.checkRow, { marginTop: 4 }]}>
                 <Checkbox checked={false} label="Nakit" />
                 <Checkbox checked={false} label="Havale" />
                 <Checkbox checked={false} label="Cari" />
                 <Checkbox checked={false} label="Fatura" />
-                <Checkbox checked={false} label="\u00C7ek" />
+                <Checkbox checked={false} label="Çek" />
               </View>
             </View>
             <View style={[s.cellLast, { flex: 1, padding: "4 6" }]}>
@@ -466,13 +446,10 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
                   İşçilik: <Text style={s.value}>{fmtTL(report.laborCost)}</Text>
                 </Text>
                 <Text style={s.label}>
-                  Par\u00E7a: <Text style={s.value}>{fmtTL(report.partsCost)}</Text>
+                  Parça: <Text style={s.value}>{fmtTL(report.partsCost)}</Text>
                 </Text>
                 <Text style={[s.label, { color: blue }]}>
-                  Toplam:{" "}
-                  <Text style={[s.value, { fontWeight: 700, color: blue }]}>
-                    {fmtTL(report.totalCost)}
-                  </Text>
+                  Toplam: <Text style={[s.value, { fontWeight: 700, color: blue }]}>{fmtTL(report.totalCost)}</Text>
                 </Text>
               </View>
             </View>
@@ -483,14 +460,14 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         <View style={s.signArea}>
           <View style={s.signCell}>
             <Text style={s.signTitle}>Düzenleyen (Teknisyen)</Text>
-            <Text style={s.signField}>Ad\u0131 ve Soyad\u0131: {techName}</Text>
-            <Text style={s.signField}>Görevi: Teknik Servis Uzman\u0131</Text>
+            <Text style={s.signField}>Adı ve Soyadı: {techName}</Text>
+            <Text style={s.signField}>Görevi: Teknik Servis Uzmanı</Text>
             <Text style={s.signField}>Onay:</Text>
             <Text style={[s.signField, { marginTop: 2 }]}>İmza:</Text>
           </View>
           <View style={s.signCellLast}>
-            <Text style={s.signTitle}>Müşteri Onay\u0131</Text>
-            <Text style={s.signField}>Ad\u0131 ve Soyad\u0131: {customerName(c)}</Text>
+            <Text style={s.signTitle}>Müşteri Onayı</Text>
+            <Text style={s.signField}>Adı ve Soyadı: {customerName(c)}</Text>
             <Text style={s.signField}>Görevi:</Text>
             <Text style={s.signField}>Onay:</Text>
             <Text style={[s.signField, { marginTop: 2 }]}>İmza:</Text>
