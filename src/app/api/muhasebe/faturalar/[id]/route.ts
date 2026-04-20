@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
   if (data.paymentMethod) updateData.paymentMethod = data.paymentMethod;
 
-  const invoice = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     let updated = await tx.invoice.update({ where: { id }, data: updateData });
     if (data.payment) {
       await tx.payment.create({ data: { invoiceId: id, amount: data.payment.amount, method: data.payment.method, reference: data.payment.reference, note: data.payment.note } });
@@ -57,9 +57,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const paidAmount = parseFloat((allPayments._sum.amount ?? 0).toString());
       const total = parseFloat(updated.total.toString());
       const newStatus = paidAmount >= total ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
-      updated = await tx.invoice.update({ where: { id }, data: { paidAmount, status: newStatus, paidAt: newStatus === InvoiceStatus.PAID ? new Date() : null } });
+      await tx.invoice.update({ where: { id }, data: { paidAmount, status: newStatus, paidAt: newStatus === InvoiceStatus.PAID ? new Date() : null } });
     }
-    return updated;
+  });
+
+  // Güncel veriyi payments dahil döndür
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    include: {
+      customer: { select: { type: true, firstName: true, lastName: true, companyName: true, phone: true, email: true } },
+      serviceReport: { select: { id: true, reportNumber: true } },
+      payments: { orderBy: { paidAt: "desc" } },
+    },
   });
 
   return NextResponse.json({ invoice });

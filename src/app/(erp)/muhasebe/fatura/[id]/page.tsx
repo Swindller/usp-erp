@@ -72,18 +72,18 @@ export default function FaturaDetailPage() {
   const [payNote, setPayNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch(`/api/muhasebe/faturalar/${id}`);
       if (!res.ok) { setError("Fatura bulunamadı"); return; }
       const data = await res.json();
       setInvoice(data.invoice);
     } catch { setError("Yüklenirken hata oluştu"); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePayment = async () => {
     if (!payAmount || isNaN(parseFloat(payAmount))) return;
@@ -94,8 +94,19 @@ export default function FaturaDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payment: { amount: parseFloat(payAmount), method: payMethod, reference: payRef || undefined, note: payNote || undefined } }),
       });
-      if (res.ok) { setShowPaymentForm(false); setPayAmount(""); setPayRef(""); setPayNote(""); load(); }
-    } finally { setSaving(false); }
+      if (!res.ok) return;
+
+      // Form kapat, alanları sıfırla
+      setShowPaymentForm(false);
+      setPayAmount("");
+      setPayRef("");
+      setPayNote("");
+
+      // Güncel fatura verisini (ödeme geçmişi dahil) yükle — spinner göstermeden
+      await load(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return (
