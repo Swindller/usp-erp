@@ -22,11 +22,6 @@ interface Personnel {
   user: { id: string; firstName: string | null; lastName: string | null; email: string; role: string };
 }
 
-interface Position {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
 
 const ROLE_LABELS: Record<PersonnelRole, string> = {
   MANAGER: "Yönetici",
@@ -74,7 +69,6 @@ export default function PersonelPage() {
   const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes((sessionData?.user as { role?: string })?.role ?? "");
 
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Personnel | null>(null);
@@ -95,11 +89,9 @@ export default function PersonelPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [pRes, posRes] = await Promise.all([fetch("/api/personel"), fetch("/api/pozisyonlar")]);
+      const pRes = await fetch("/api/personel");
       const pData = await pRes.json();
-      const posData = await posRes.json();
       setPersonnel(pData.personnel ?? []);
-      setPositions((posData.positions ?? []).filter((p: Position) => p.isActive));
     } finally {
       setLoading(false);
     }
@@ -377,21 +369,10 @@ export default function PersonelPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                   >
                     <option value="">— Seçiniz —</option>
-                    {positions.length > 0 ? (
-                      positions.map((pos) => (
-                        <option key={pos.id} value={pos.name}>{pos.name}</option>
-                      ))
-                    ) : (
-                      DISPLAY_ROLES.map((r) => (
-                        <option key={r} value={ROLE_LABELS[r]}>{ROLE_LABELS[r]}</option>
-                      ))
-                    )}
+                    {DISPLAY_ROLES.map((r) => (
+                      <option key={r} value={ROLE_LABELS[r]}>{ROLE_LABELS[r]}</option>
+                    ))}
                   </select>
-                  {positions.length === 0 && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      <a href="/pozisyonlar" className="text-blue-500 hover:underline">Pozisyon eklemek</a> için tıklayın
-                    </p>
-                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1">Maaş (₺)</label>
