@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { hash } from "bcryptjs";
 import { PersonnelRole } from "@prisma/client";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
@@ -61,5 +62,25 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   // Soft delete
   await prisma.personnel.update({ where: { id }, data: { isActive: false } });
+  return NextResponse.json({ ok: true });
+}
+
+// PUT — şifre değiştir
+const passwordSchema = z.object({ password: z.string().min(6) });
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getAuthUser();
+  if (!user || !ADMIN_ROLES.includes(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const parsed = passwordSchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: "Şifre en az 6 karakter olmalıdır." }, { status: 400 });
+
+  const personnel = await prisma.personnel.findUnique({ where: { id }, include: { user: true } });
+  if (!personnel) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
+
+  const passwordHash = await hash(parsed.data.password, 12);
+  await prisma.user.update({ where: { id: personnel.userId }, data: { passwordHash } });
+
   return NextResponse.json({ ok: true });
 }

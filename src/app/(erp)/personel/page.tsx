@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Users, Plus, Edit2, Trash2, X, CheckCircle, Clock, TrendingUp,
-  Wrench, Eye, EyeOff,
+  Wrench, Eye, EyeOff, KeyRound,
 } from "lucide-react";
 
 type PersonnelRole = "TECHNICIAN" | "FIELD_TECHNICIAN" | "WORKSHOP_TECHNICIAN" | "SUPERVISOR" | "MANAGER";
@@ -76,6 +76,14 @@ export default function PersonelPage() {
   const [error, setError] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Personnel | null>(null);
+
+  // Şifre değiştirme
+  const [pwTarget, setPwTarget] = useState<Personnel | null>(null);
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -175,6 +183,32 @@ export default function PersonelPage() {
     load();
   };
 
+  const openPwModal = (p: Personnel) => {
+    setPwTarget(p);
+    setNewPw("");
+    setConfirmPw("");
+    setPwError("");
+    setShowNewPw(false);
+  };
+
+  const handlePasswordChange = async () => {
+    if (!pwTarget) return;
+    if (newPw.length < 6) { setPwError("Şifre en az 6 karakter olmalıdır."); return; }
+    if (newPw !== confirmPw) { setPwError("Şifreler eşleşmiyor."); return; }
+    setPwError("");
+    setPwSaving(true);
+    try {
+      const res = await fetch(`/api/personel/${pwTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setPwError(data.error || "Şifre değiştirilemedi."); return; }
+      setPwTarget(null);
+    } finally { setPwSaving(false); }
+  };
+
   const totalCount = personnel.length;
 
   return (
@@ -258,8 +292,9 @@ export default function PersonelPage() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
-                          <button onClick={() => setDeleteTarget(p)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
+                          <button onClick={() => openEdit(p)} title="Düzenle" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
+                          <button onClick={() => openPwModal(p)} title="Şifre Değiştir" className="p-1.5 rounded-lg hover:bg-yellow-50 text-gray-400 hover:text-yellow-600 transition-colors"><KeyRound size={14} /></button>
+                          <button onClick={() => setDeleteTarget(p)} title="Sil" className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -385,6 +420,58 @@ export default function PersonelPage() {
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">İptal</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {saving ? "Kaydediliyor..." : editTarget ? "Güncelle" : "Personel Ekle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Şifre Değiştir Modal */}
+      {pwTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <KeyRound size={16} className="text-yellow-600" />
+                <h3 className="font-bold text-gray-900">Şifre Değiştir</h3>
+              </div>
+              <button onClick={() => setPwTarget(null)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} className="text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-500">
+                <span className="font-semibold text-gray-800">{[pwTarget.user.firstName, pwTarget.user.lastName].filter(Boolean).join(" ")}</span> için yeni şifre belirleyin.
+              </p>
+              {pwError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">{pwError}</div>}
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Yeni Şifre *</label>
+                <div className="relative">
+                  <input
+                    type={showNewPw ? "text" : "password"}
+                    value={newPw}
+                    onChange={(e) => setNewPw(e.target.value)}
+                    placeholder="En az 6 karakter"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 pr-10"
+                  />
+                  <button type="button" onClick={() => setShowNewPw((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    {showNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Şifreyi Onayla *</label>
+                <input
+                  type={showNewPw ? "text" : "password"}
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  placeholder="Şifreyi tekrar girin"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setPwTarget(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">İptal</button>
+              <button onClick={handlePasswordChange} disabled={pwSaving} className="flex-1 py-2.5 rounded-xl bg-yellow-500 text-white text-sm font-semibold hover:bg-yellow-600 transition-colors disabled:opacity-50">
+                {pwSaving ? "Kaydediliyor..." : "Şifreyi Güncelle"}
               </button>
             </div>
           </div>
