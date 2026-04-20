@@ -13,6 +13,7 @@ const createSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   personnelRole: z.nativeEnum(PersonnelRole),
+  positionTitle: z.string().optional(),
   department: z.string().optional(),
   speciality: z.string().optional(),
   phone: z.string().optional(),
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-  const { firstName, lastName, email, password, personnelRole, department, speciality, phone, salary, permissions } = parsed.data;
+  const { firstName, lastName, email, password, personnelRole, positionTitle, department, speciality, phone, salary, permissions } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return NextResponse.json({ error: "Bu e-posta zaten kullanılıyor." }, { status: 409 });
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
     data: {
       userId: newUser.id,
       role: personnelRole,
+      positionTitle: positionTitle || null,
       department,
       speciality,
       phone,

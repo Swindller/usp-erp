@@ -10,6 +10,7 @@ const updateSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   personnelRole: z.nativeEnum(PersonnelRole).optional(),
+  positionTitle: z.string().nullable().optional(),
   department: z.string().nullable().optional(),
   speciality: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
@@ -26,12 +27,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = updateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-  const { firstName, lastName, personnelRole, department, speciality, phone, salary, permissions, isActive } = parsed.data;
+  const { firstName, lastName, personnelRole, positionTitle, department, speciality, phone, salary, permissions, isActive } = parsed.data;
 
   const personnel = await prisma.personnel.update({
     where: { id },
     data: {
       ...(personnelRole && { role: personnelRole }),
+      ...(positionTitle !== undefined && { positionTitle }),
       ...(department !== undefined && { department }),
       ...(speciality !== undefined && { speciality }),
       ...(phone !== undefined && { phone }),

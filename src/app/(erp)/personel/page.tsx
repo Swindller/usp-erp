@@ -11,6 +11,7 @@ type PersonnelRole = "TECHNICIAN" | "FIELD_TECHNICIAN" | "WORKSHOP_TECHNICIAN" |
 interface Personnel {
   id: string;
   role: PersonnelRole;
+  positionTitle: string | null;
   department: string | null;
   speciality: string | null;
   phone: string | null;
@@ -20,6 +21,12 @@ interface Personnel {
   user: { id: string; firstName: string | null; lastName: string | null; email: string; role: string };
 }
 
+interface Position {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 const ROLE_LABELS: Record<PersonnelRole, string> = {
   TECHNICIAN: "Teknisyen",
   FIELD_TECHNICIAN: "Saha Teknisyeni",
@@ -27,6 +34,16 @@ const ROLE_LABELS: Record<PersonnelRole, string> = {
   SUPERVISOR: "Süpervizör",
   MANAGER: "Yönetici",
 };
+
+// Pozisyon adından sistem rolü belirle
+function inferRole(positionTitle: string): PersonnelRole {
+  const lower = positionTitle.toLowerCase();
+  if (lower.includes("yönetici") || lower.includes("müdür") || lower.includes("manager")) return "MANAGER";
+  if (lower.includes("süpervizör") || lower.includes("supervisor") || lower.includes("şef")) return "SUPERVISOR";
+  if (lower.includes("saha")) return "FIELD_TECHNICIAN";
+  if (lower.includes("atölye") || lower.includes("atolye")) return "WORKSHOP_TECHNICIAN";
+  return "TECHNICIAN";
+}
 
 const ALL_PERMISSIONS = [
   { key: "dashboard", label: "Dashboard" },
@@ -43,12 +60,14 @@ const ALL_PERMISSIONS = [
 const defaultForm = {
   firstName: "", lastName: "", email: "", password: "",
   personnelRole: "TECHNICIAN" as PersonnelRole,
+  positionTitle: "",
   department: "", speciality: "", phone: "", salary: "",
   permissions: ["servis"] as string[],
 };
 
 export default function PersonelPage() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Personnel | null>(null);
@@ -60,9 +79,11 @@ export default function PersonelPage() {
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch("/api/personel");
-    const data = await res.json();
-    setPersonnel(data.personnel ?? []);
+    const [pRes, posRes] = await Promise.all([fetch("/api/personel"), fetch("/api/pozisyonlar")]);
+    const pData = await pRes.json();
+    const posData = await posRes.json();
+    setPersonnel(pData.personnel ?? []);
+    setPositions((posData.positions ?? []).filter((p: Position) => p.isActive));
     setLoading(false);
   };
 
@@ -83,6 +104,7 @@ export default function PersonelPage() {
       email: p.user.email,
       password: "",
       personnelRole: p.role,
+      positionTitle: p.positionTitle ?? "",
       department: p.department ?? "",
       speciality: p.speciality ?? "",
       phone: p.phone ?? "",
@@ -106,6 +128,9 @@ export default function PersonelPage() {
     setError("");
     setSaving(true);
     try {
+      // Pozisyon seçilmişse sistem rolünü otomatik belirle
+      const inferredRole = form.positionTitle ? inferRole(form.positionTitle) : form.personnelRole;
+
       if (editTarget) {
         const res = await fetch(`/api/personel/${editTarget.id}`, {
           method: "PATCH",
@@ -113,7 +138,8 @@ export default function PersonelPage() {
           body: JSON.stringify({
             firstName: form.firstName,
             lastName: form.lastName,
-            personnelRole: form.personnelRole,
+            personnelRole: inferredRole,
+            positionTitle: form.positionTitle || null,
             department: form.department || null,
             speciality: form.speciality || null,
             phone: form.phone || null,
@@ -129,6 +155,8 @@ export default function PersonelPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...form,
+            personnelRole: inferredRole,
+            positionTitle: form.positionTitle || undefined,
             salary: form.salary ? parseFloat(form.salary) : undefined,
           }),
         });
@@ -209,8 +237,8 @@ export default function PersonelPage() {
                         <p className="text-xs text-gray-400">{p.user.email}</p>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                          {ROLE_LABELS[p.role] ?? p.role}
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                          {p.positionTitle ?? ROLE_LABELS[p.role] ?? p.role}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-gray-600 text-xs">{p.department || "—"}</td>
@@ -290,12 +318,28 @@ export default function PersonelPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1">Pozisyon *</label>
-                  <select value={form.personnelRole} onChange={(e) => setForm((f) => ({ ...f, personnelRole: e.target.value as PersonnelRole }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white">
-                    {(Object.keys(ROLE_LABELS) as PersonnelRole[]).map((r) => (
-                      <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                    ))}
+                  <select
+                    value={form.positionTitle}
+                    onChange={(e) => setForm((f) => ({ ...f, positionTitle: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                  >
+                    <option value="">— Seçiniz —</option>
+                    {positions.length > 0 ? (
+                      positions.map((pos) => (
+                        <option key={pos.id} value={pos.name}>{pos.name}</option>
+                      ))
+                    ) : (
+                      // Pozisyon eklenmemişse fallback olarak hardcoded göster
+                      (Object.keys(ROLE_LABELS) as PersonnelRole[]).map((r) => (
+                        <option key={r} value={ROLE_LABELS[r]}>{ROLE_LABELS[r]}</option>
+                      ))
+                    )}
                   </select>
+                  {positions.length === 0 && (
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      <a href="/pozisyonlar" className="text-blue-500 hover:underline">Pozisyon eklemek</a> için tıklayın
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1">Maaş (₺)</label>

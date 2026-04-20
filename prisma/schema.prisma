@@ -632,13 +632,14 @@ model Personnel {
   id          String        @id @default(cuid())
   userId      String        @unique
   user        User          @relation(fields: [userId], references: [id])
-  role        PersonnelRole @default(TECHNICIAN)
-  department  String?
-  speciality  String?
-  phone       String?
-  salary      Decimal?      @db.Decimal(12, 2)
-  permissions String[]      @default([])
-  isActive    Boolean       @default(true)
+  role          PersonnelRole @default(TECHNICIAN)
+  positionTitle String?       // Kullanıcı tanımlı pozisyon adı
+  department    String?
+  speciality    String?
+  phone         String?
+  salary        Decimal?      @db.Decimal(12, 2)
+  permissions   String[]      @default([])
+  isActive      Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
