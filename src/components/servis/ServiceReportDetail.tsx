@@ -6,7 +6,7 @@ import { ServiceStatus, ServiceType, CustomerType, ServiceLogType } from "@prism
 import {
   ChevronLeft, Edit3, Save, X,
   User, Building2, Phone, Wrench,
-  Calendar, Clock, Shield, FileText,
+  Calendar, Clock, Shield, FileText, Download,
 } from "lucide-react";
 import { ServiceStatusBadge, STATUS_CONFIG } from "./ServiceStatusBadge";
 import { ServiceLogPanel } from "./ServiceLogPanel";
@@ -235,7 +235,16 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
               <span className="font-mono text-xs text-gray-400">{report.reportNumber}</span>
               <h1 className="text-xl font-bold text-gray-900">{customerName(report.customer)}</h1>
             </div>
-            <ServiceStatusBadge status={report.status} size="lg" />
+            <div className="flex items-center gap-2">
+              <ServiceStatusBadge status={report.status} size="lg" />
+              <a
+                href={`/api/servis/${report.id}/pdf`}
+                download
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600"
+              >
+                <Download size={13} />PDF İndir
+              </a>
+            </div>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-500">
             <span className="flex items-center gap-1"><Calendar size={11} /> Alınma: {fmt(report.receivedAt)}</span>
