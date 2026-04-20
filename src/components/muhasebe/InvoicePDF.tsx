@@ -28,14 +28,18 @@ const s = StyleSheet.create({
   },
 
   // ── Header ────────────────────────────────────────────────────────────────
-  header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 },
-  logoTitle:   { fontSize: 14, fontWeight: 700, color: blue, letterSpacing: 0.5 },
-  logoSub:     { fontSize: 6.5, color: darkBlue, marginTop: 2 },
-  logoCompany: { fontSize: 6, color: gray, marginTop: 1 },
-  invBox:      { alignItems: "flex-end", borderWidth: 1.5, borderColor: blue, padding: "5 10", borderRadius: 3, minWidth: 130 },
-  invTitle:    { fontSize: 12, fontWeight: 700, color: blue },
-  invNumber:   { fontSize: 8, fontWeight: 700, color: darkBlue, marginTop: 2 },
-  invDate:     { fontSize: 7, color: gray, marginTop: 1 },
+  header:         { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 },
+  logoBlock:      { flex: 1 },
+  logoTitle:      { fontSize: 11, fontWeight: 700, color: blue, letterSpacing: 0.3 },
+  logoTaxLine:    { fontSize: 7, color: darkBlue, marginTop: 2 },
+  logoAddress:    { fontSize: 6.5, color: gray, marginTop: 1 },
+  grundfosBox:    { marginTop: 5, borderLeftWidth: 2, borderLeftColor: blue, paddingLeft: 5 },
+  grundfosLabel:  { fontSize: 6, fontWeight: 700, color: blue, textTransform: "uppercase" },
+  grundfosValue:  { fontSize: 6.5, color: darkBlue, marginTop: 1 },
+  invBox:         { alignItems: "flex-end", borderWidth: 1.5, borderColor: blue, padding: "5 10", borderRadius: 3, minWidth: 130 },
+  invTitle:       { fontSize: 12, fontWeight: 700, color: blue },
+  invNumber:      { fontSize: 8, fontWeight: 700, color: darkBlue, marginTop: 2 },
+  invDate:        { fontSize: 7, color: gray, marginTop: 1 },
 
   // ── Two-column card ───────────────────────────────────────────────────────
   cards:       { flexDirection: "row", gap: 8, marginBottom: 8 },
@@ -180,10 +184,15 @@ export function InvoicePDF({ invoice }: InvoicePDFProps) {
 
         {/* ── Header ── */}
         <View style={s.header}>
-          <View>
-            <Text style={s.logoTitle}>USP TEKNİK SERVİS</Text>
-            <Text style={s.logoSub}>Pompa ve Su Sistemleri Servis Merkezi</Text>
-            <Text style={s.logoCompany}>Grundfos Yetkili Servis</Text>
+          <View style={s.logoBlock}>
+            <Text style={s.logoTitle}>Uğur Su Pompaları Tarım İnşaat Hayvancılık</Text>
+            <Text style={s.logoTitle}>Sanayi ve Ticaret LTD. ŞTİ.</Text>
+            <Text style={s.logoTaxLine}>VKN: 8860491060  |  Etimesgut Vergi Dairesi</Text>
+            <Text style={s.logoAddress}>Altay Mahallesi Söğüt Caddesi No:8/DAA  Etimesgut / Ankara</Text>
+            <View style={s.grundfosBox}>
+              <Text style={s.grundfosLabel}>Grundfos Yetkili Servisi</Text>
+              <Text style={s.grundfosValue}>Grundfos İç Anadolu Bölge Yetkili Servisi</Text>
+            </View>
           </View>
           <View style={s.invBox}>
             <Text style={s.invTitle}>FATURA</Text>
@@ -285,7 +294,7 @@ export function InvoicePDF({ invoice }: InvoicePDFProps) {
         {/* ── Footer ── */}
         <View style={s.footer}>
           <Text style={s.footerText}>
-            USP Teknik Servis · Grundfos Yetkili Servis Merkezi · Bu belge elektronik ortamda oluşturulmuştur.
+            Uğur Su Pompaları  *  Grundfos İç Anadolu Bölge Yetkili Servisi  *  Bu belge elektronik ortamda oluşturulmuştur.
           </Text>
         </View>
 

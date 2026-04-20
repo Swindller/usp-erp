@@ -52,7 +52,7 @@ export default function YeniFaturaPage() {
     if (!q.trim()) { setCustomers([]); return; }
     setSearching(true);
     try {
-      const res = await fetch(`/api/musteriler?search=${encodeURIComponent(q)}&limit=8`);
+      const res = await fetch(`/api/musteriler?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       setCustomers(data.customers ?? []);
     } finally { setSearching(false); }
