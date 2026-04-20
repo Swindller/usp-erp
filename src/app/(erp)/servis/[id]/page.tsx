@@ -14,7 +14,8 @@ export default async function ServisDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
-  if (!session || !ALLOWED_ROLES.includes(role || "")) redirect("/giris");
+  if (!session) redirect("/giris");
+  if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
 
   const [report, personnel] = await Promise.all([
     prisma.serviceReport.findUnique({

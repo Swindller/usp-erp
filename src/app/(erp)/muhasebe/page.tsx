@@ -33,7 +33,8 @@ export default async function MuhasebePage({ searchParams }: Props) {
   const { status, page: pageStr } = await searchParams;
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
-  if (!session || !ALLOWED_ROLES.includes(role || "")) redirect("/giris");
+  if (!session) redirect("/giris");
+  if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
 
   const page = Math.max(1, parseInt(pageStr || "1"));
   const limit = 20;

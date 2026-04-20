@@ -9,7 +9,8 @@ const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 export default async function YeniServisPage() {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
-  if (!session || !ALLOWED_ROLES.includes(role || "")) redirect("/giris");
+  if (!session) redirect("/giris");
+  if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
 
   const personnel = await prisma.personnel.findMany({
     where: { isActive: true },
