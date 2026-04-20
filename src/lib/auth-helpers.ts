@@ -35,13 +35,34 @@ export async function getAppSession(): Promise<AuthSession | null> {
     const decoded = await decode({ token, secret });
     if (!decoded?.id) return null;
 
+    const role = (decoded.role as string) || "TECHNICIAN";
+    const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(role);
+
+    // Eski JWT'de permissions alanı yok — DB'den çek (geçiş dönemi fallback)
+    let permissions = decoded.permissions as string[] | undefined;
+    if (permissions === undefined) {
+      if (isAdmin) {
+        permissions = ["dashboard","servis","musteriler","muhasebe","stok","bordro","devamsizlik","vergiler","personel","pozisyonlar"];
+      } else {
+        try {
+          const personnel = await prisma.personnel.findFirst({
+            where: { userId: decoded.id as string },
+            select: { permissions: true },
+          });
+          permissions = personnel?.permissions ?? [];
+        } catch {
+          permissions = [];
+        }
+      }
+    }
+
     return {
       user: {
         id: decoded.id as string,
-        role: (decoded.role as string) || "TECHNICIAN",
+        role,
         email: (decoded.email as string) || "",
         name: (decoded.name as string) || "",
-        permissions: (decoded.permissions as string[]) || [],
+        permissions,
       },
     };
   } catch {
