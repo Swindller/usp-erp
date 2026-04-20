@@ -4,9 +4,7 @@ import { InvoiceStatus, CustomerType, Prisma } from "@prisma/client";
 import Link from "next/link";
 import { TrendingUp, Clock, AlertTriangle, CheckCircle2, FileText, ChevronRight, Building2, User, Plus } from "lucide-react";
 import { DeleteInvoiceButton } from "@/components/muhasebe/DeleteInvoiceButton";
-import { getAppSession } from "@/lib/auth-helpers";
-
-const ROLE_ALLOWED = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+import { getAppSession, hasPagePermission } from "@/lib/auth-helpers";
 
 interface Props {
   searchParams: Promise<{ status?: string; page?: string }>;
@@ -32,12 +30,8 @@ export default async function MuhasebePage({ searchParams }: Props) {
   const { status, page: pageStr } = await searchParams;
   const session = await getAppSession();
   if (!session) redirect("/giris");
+  if (!await hasPagePermission(session.user.id, session.user.role, "muhasebe")) redirect("/");
   const role = session.user.role;
-  if (!ROLE_ALLOWED.includes(role)) {
-    // muhasebe permission varsa izin ver
-    const personnel = await prisma.personnel.findFirst({ where: { userId: session.user.id }, select: { permissions: true } });
-    if (!personnel?.permissions?.includes("muhasebe")) redirect("/");
-  }
 
   const page = Math.max(1, parseInt(pageStr || "1"));
   const limit = 20;

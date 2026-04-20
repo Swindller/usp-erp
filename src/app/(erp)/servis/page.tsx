@@ -2,7 +2,7 @@ import Link from "next/link";
 
 
 import { redirect } from "next/navigation";
-import { getAppSession } from "@/lib/auth-helpers";
+import { getAppSession, hasPagePermission } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { ServiceStatus } from "@prisma/client";
 import { ServiceStatusBadge, STATUS_CONFIG } from "@/components/servis/ServiceStatusBadge";
@@ -10,7 +10,6 @@ import { Plus, Search, Wrench, Clock, User, Building2 } from "lucide-react";
 import { Prisma } from "@prisma/client";
 import { CsvButtons } from "@/components/ui/CsvButtons";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 interface Props {
   searchParams: Promise<{ status?: string; page?: string; q?: string }>;
@@ -37,9 +36,9 @@ function relativeDate(date: Date) {
 export default async function ServisListPage({ searchParams }: Props) {
   const { status, page: pageStr, q } = await searchParams;
   const session = await getAppSession();
-  const role = session?.user?.role;
   if (!session) redirect("/giris");
-  if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
+  const role = session.user.role;
+  if (!await hasPagePermission(session.user.id, role, "servis")) redirect("/");
 
   const page = Math.max(1, parseInt(pageStr || "1"));
   const limit = 20;

@@ -3,9 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { IncomingInvoiceStatus, Prisma } from "@prisma/client";
 import Link from "next/link";
 import { TrendingDown, Clock, AlertTriangle, CheckCircle2, ChevronRight, Plus, Package } from "lucide-react";
-import { getAppSession } from "@/lib/auth-helpers";
-
-const ROLE_ALLOWED = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
+import { getAppSession, hasPagePermission } from "@/lib/auth-helpers";
 
 interface Props {
   searchParams: Promise<{ status?: string; page?: string }>;
@@ -29,11 +27,7 @@ export default async function GelenFaturaPage({ searchParams }: Props) {
   const { status, page: pageStr } = await searchParams;
   const session = await getAppSession();
   if (!session) redirect("/giris");
-  const role = session.user.role;
-  if (!ROLE_ALLOWED.includes(role)) {
-    const personnel = await prisma.personnel.findFirst({ where: { userId: session.user.id }, select: { permissions: true } });
-    if (!personnel?.permissions?.includes("muhasebe")) redirect("/");
-  }
+  if (!await hasPagePermission(session.user.id, session.user.role, "muhasebe")) redirect("/");
 
   const page = Math.max(1, parseInt(pageStr || "1"));
   const limit = 20;

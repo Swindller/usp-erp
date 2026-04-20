@@ -1,11 +1,10 @@
 
 
 import { redirect, notFound } from "next/navigation";
-import { getAppSession } from "@/lib/auth-helpers";
+import { getAppSession, hasPagePermission } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { ServiceReportDetail } from "@/components/servis/ServiceReportDetail";
 
-const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -14,9 +13,9 @@ interface Props {
 export default async function ServisDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await getAppSession();
-  const role = session?.user?.role;
   if (!session) redirect("/giris");
-  if (!ALLOWED_ROLES.includes(role || "")) redirect("/");
+  const role = session.user.role;
+  if (!await hasPagePermission(session.user.id, role, "servis")) redirect("/");
 
   const [report, personnel] = await Promise.all([
     prisma.serviceReport.findUnique({
