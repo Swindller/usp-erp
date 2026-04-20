@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
-  Users, Plus, Edit2, Trash2, X, CheckCircle, Clock, TrendingUp,
+  Users, Plus, Edit2, Trash2, X, CheckCircle, TrendingUp,
   Wrench, Eye, EyeOff, KeyRound,
 } from "lucide-react";
 
@@ -28,20 +29,22 @@ interface Position {
 }
 
 const ROLE_LABELS: Record<PersonnelRole, string> = {
-  TECHNICIAN: "Teknisyen",
-  FIELD_TECHNICIAN: "Saha Teknisyeni",
-  WORKSHOP_TECHNICIAN: "Atölye Teknisyeni",
-  SUPERVISOR: "Süpervizör",
   MANAGER: "Yönetici",
+  FIELD_TECHNICIAN: "Satış",
+  WORKSHOP_TECHNICIAN: "Muhasebe",
+  TECHNICIAN: "Teknisyen",
+  SUPERVISOR: "Yönetici",  // eski kayıtlar için — dropdown'da gösterilmez
 };
+
+// Dropdown'da gösterilecek 4 rol
+const DISPLAY_ROLES: PersonnelRole[] = ["MANAGER", "FIELD_TECHNICIAN", "WORKSHOP_TECHNICIAN", "TECHNICIAN"];
 
 // Pozisyon adından sistem rolü belirle
 function inferRole(positionTitle: string): PersonnelRole {
   const lower = positionTitle.toLowerCase();
-  if (lower.includes("yönetici") || lower.includes("müdür") || lower.includes("manager")) return "MANAGER";
-  if (lower.includes("süpervizör") || lower.includes("supervisor") || lower.includes("şef")) return "SUPERVISOR";
-  if (lower.includes("saha")) return "FIELD_TECHNICIAN";
-  if (lower.includes("atölye") || lower.includes("atolye")) return "WORKSHOP_TECHNICIAN";
+  if (lower.includes("yönetici") || lower.includes("müdür") || lower.includes("manager") || lower.includes("supervisor")) return "MANAGER";
+  if (lower.includes("satış") || lower.includes("satis") || lower.includes("sales")) return "FIELD_TECHNICIAN";
+  if (lower.includes("muhasebe") || lower.includes("finans") || lower.includes("accounting")) return "WORKSHOP_TECHNICIAN";
   return "TECHNICIAN";
 }
 
@@ -66,6 +69,9 @@ const defaultForm = {
 };
 
 export default function PersonelPage() {
+  const { data: sessionData } = useSession();
+  const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes((sessionData?.user as { role?: string })?.role ?? "");
+
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
@@ -223,9 +229,11 @@ export default function PersonelPage() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">{totalCount} aktif personel</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors">
-          <Plus size={16} />Personel Ekle
-        </button>
+        {isAdmin && (
+          <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors">
+            <Plus size={16} />Personel Ekle
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -294,11 +302,15 @@ export default function PersonelPage() {
                         {p.salary != null ? `₺${parseFloat(String(p.salary)).toLocaleString("tr-TR")}` : "—"}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => openEdit(p)} title="Düzenle" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
-                          <button onClick={() => openPwModal(p)} title="Şifre Değiştir" className="p-1.5 rounded-lg hover:bg-yellow-50 text-gray-400 hover:text-yellow-600 transition-colors"><KeyRound size={14} /></button>
-                          <button onClick={() => setDeleteTarget(p)} title="Sil" className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
-                        </div>
+                        {isAdmin ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => openEdit(p)} title="Düzenle" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
+                            <button onClick={() => openPwModal(p)} title="Şifre Değiştir" className="p-1.5 rounded-lg hover:bg-yellow-50 text-gray-400 hover:text-yellow-600 transition-colors"><KeyRound size={14} /></button>
+                            <button onClick={() => setDeleteTarget(p)} title="Sil" className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 block text-center">—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -367,8 +379,7 @@ export default function PersonelPage() {
                         <option key={pos.id} value={pos.name}>{pos.name}</option>
                       ))
                     ) : (
-                      // Pozisyon eklenmemişse fallback olarak hardcoded göster
-                      (Object.keys(ROLE_LABELS) as PersonnelRole[]).map((r) => (
+                      DISPLAY_ROLES.map((r) => (
                         <option key={r} value={ROLE_LABELS[r]}>{ROLE_LABELS[r]}</option>
                       ))
                     )}
