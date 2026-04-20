@@ -20,6 +20,7 @@ const createSchema = z.object({
   phone: z.string().optional(),
   salary: z.coerce.number().optional(),
   permissions: z.array(z.string()).default([]),
+  isAdmin: z.boolean().default(false),
 });
 
 export async function GET() {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-  const { firstName, lastName, email, password, personnelRole, positionTitle, department, speciality, phone, salary, permissions } = parsed.data;
+  const { firstName, lastName, email, password, personnelRole, positionTitle, department, speciality, phone, salary, permissions, isAdmin } = parsed.data;
 
   const existing = await prisma.user.findUnique({
     where: { email },
@@ -50,7 +51,8 @@ export async function POST(req: NextRequest) {
   });
 
   const passwordHash = await hash(password, 12);
-  const userRole: UserRole = ["MANAGER", "SUPERVISOR"].includes(personnelRole) ? "MANAGER" : "TECHNICIAN";
+  // isAdmin → ADMIN rolü; Yönetici pozisyonu → MANAGER; diğerleri → TECHNICIAN
+  const userRole: UserRole = isAdmin ? "ADMIN" : ["MANAGER", "SUPERVISOR"].includes(personnelRole) ? "MANAGER" : "TECHNICIAN";
 
   // E-posta mevcut ama kullanıcı pasif silinmişse → yeniden aktive et
   if (existing) {
