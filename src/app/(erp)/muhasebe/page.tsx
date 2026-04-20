@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { InvoiceStatus, CustomerType, Prisma } from "@prisma/client";
 import Link from "next/link";
 import { TrendingUp, Clock, AlertTriangle, CheckCircle2, FileText, ChevronRight, Building2, User } from "lucide-react";
+import { DeleteInvoiceButton } from "@/components/muhasebe/DeleteInvoiceButton";
 
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
 
@@ -114,10 +115,13 @@ export default async function MuhasebePage({ searchParams }: Props) {
                   <div className="sm:col-span-1 sm:text-right"><span className="text-sm font-semibold">{fmt(toNum(inv.total))}</span></div>
                   <div className="sm:col-span-2"><span className={`text-xs ${isOverdue ? "text-red-600 font-semibold" : "text-gray-500"}`}>{inv.dueDate ? fmtDate(inv.dueDate) : "Vade yok"}</span></div>
                   <div className="sm:col-span-1"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[displayStatus].classes}`}>{STATUS_CONFIG[displayStatus].label}</span></div>
-                  <div className="sm:col-span-1 flex justify-end">
-                    {inv.status !== InvoiceStatus.PAID && inv.status !== InvoiceStatus.CANCELLED && (
-                      <Link href={`/muhasebe/fatura/${inv.id}`} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Detay"><ChevronRight size={14} /></Link>
+                  <div className="sm:col-span-1 flex justify-end items-center gap-0.5">
+                    {role === "SUPER_ADMIN" && (
+                      <DeleteInvoiceButton invoiceId={inv.id} invoiceNumber={inv.invoiceNumber} />
                     )}
+                    <Link href={`/muhasebe/fatura/${inv.id}`} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Detay">
+                      <ChevronRight size={14} />
+                    </Link>
                   </div>
                 </div>
               );
