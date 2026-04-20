@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   ChevronLeft, CheckCircle2, Clock, AlertTriangle, FileText,
   Building2, User, CreditCard, Banknote, Landmark, Smartphone, Package,
-  CalendarDays, Plus,
+  CalendarDays, Plus, Trash2,
 } from "lucide-react";
 
 type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "PARTIALLY_PAID" | "OVERDUE" | "CANCELLED";
@@ -62,6 +63,9 @@ function customerName(c: Invoice["customer"]) {
 export default function FaturaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { data: session } = useSession();
+  const isSuperAdmin = (session?.user as { role?: string })?.role === "SUPER_ADMIN";
+
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -71,6 +75,8 @@ export default function FaturaDetailPage() {
   const [payRef, setPayRef] = useState("");
   const [payNote, setPayNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -109,6 +115,14 @@ export default function FaturaDetailPage() {
     }
   };
 
+  const deleteInvoice = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/muhasebe/faturalar/${id}`, { method: "DELETE" });
+      if (res.ok) { router.push("/muhasebe"); }
+    } finally { setDeleting(false); }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
@@ -140,9 +154,17 @@ export default function FaturaDetailPage() {
           <h1 className="text-xl font-bold text-gray-900 font-mono">{invoice.invoiceNumber}</h1>
           <p className="text-sm text-gray-500">Fatura Detayı</p>
         </div>
-        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${cfg.classes}`}>
-          {cfg.icon}{cfg.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${cfg.classes}`}>
+            {cfg.icon}{cfg.label}
+          </span>
+          {isSuperAdmin && (
+            <button onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors text-xs font-medium text-red-600">
+              <Trash2 size={13} />Sil
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -245,6 +267,34 @@ export default function FaturaDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Sil Onay Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+              <AlertTriangle size={22} className="text-red-600" />
+            </div>
+            <div className="text-center">
+              <h3 className="font-bold text-gray-900 text-lg">Faturayı Sil</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                <span className="font-mono font-semibold text-gray-700">{invoice.invoiceNumber}</span> numaralı fatura ve tüm ödeme kayıtları kalıcı olarak silinecek.
+              </p>
+              <p className="text-xs text-red-500 mt-2">Bu işlem geri alınamaz.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                İptal
+              </button>
+              <button onClick={deleteInvoice} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50">
+                {deleting ? "Siliniyor..." : "Evet, Sil"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ödeme Formu Modal */}
       {showPaymentForm && (

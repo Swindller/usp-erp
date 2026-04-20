@@ -73,3 +73,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   return NextResponse.json({ invoice });
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getAuthUser();
+  if (!user || user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Sadece Süper Admin silebilir" }, { status: 403 });
+
+  const { id } = await params;
+  // Payment'lar cascade ile silinir
+  await prisma.invoice.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

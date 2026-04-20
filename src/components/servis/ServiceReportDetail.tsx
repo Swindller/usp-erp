@@ -6,7 +6,7 @@ import { ServiceStatus, ServiceType, CustomerType, ServiceLogType } from "@prism
 import {
   ChevronLeft, Edit3, Save, X,
   User, Building2, Phone, Wrench,
-  Calendar, Clock, Shield, FileText, Download, Receipt, Plus, Trash2,
+  Calendar, Clock, Shield, FileText, Download, Receipt, Plus, Trash2, AlertTriangle,
 } from "lucide-react";
 import { ServiceStatusBadge, STATUS_CONFIG } from "./ServiceStatusBadge";
 import { ServiceLogPanel } from "./ServiceLogPanel";
@@ -90,6 +90,7 @@ interface Props {
   report: Report;
   personnel: Personnel[];
   canEdit: boolean;
+  canDelete?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -139,7 +140,7 @@ function fmtCurrency(val: string | null) {
 
 // ── Component ─────────────────────────────────────────────────
 
-export function ServiceReportDetail({ report: initialReport, personnel, canEdit }: Props) {
+export function ServiceReportDetail({ report: initialReport, personnel, canEdit, canDelete = false }: Props) {
   const [report, setReport] = useState<Report>(initialReport);
   const [tab, setTab] = useState<"details" | "logs" | "signatures">("details");
   const [saving, setSaving] = useState(false);
@@ -169,6 +170,18 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
   const [customerSig, setCustomerSig] = useState<string | null>(report.customerSignature);
   const [techSig, setTechSig] = useState<string | null>(report.technicianSignature);
   const [savingSig, setSavingSig] = useState(false);
+
+  // Delete report
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const deleteReport = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/servis/${report.id}`, { method: "DELETE" });
+      if (res.ok) { window.location.href = "/servis"; }
+    } finally { setDeleting(false); }
+  };
 
   // Invoice creation modal
   const [showInvModal, setShowInvModal] = useState(false);
@@ -321,6 +334,15 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-green-300 bg-green-50 hover:bg-green-100 transition-colors text-xs font-medium text-green-700"
                 >
                   <Receipt size={13} />Fatura Oluştur
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors text-xs font-medium text-red-600"
+                >
+                  <Trash2 size={13} />Sil
                 </button>
               )}
             </div>
@@ -704,6 +726,34 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit 
               {savingSig ? "Kaydediliyor..." : "İmzaları Kaydet"}
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Rapor Sil Onay ── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+              <AlertTriangle size={22} className="text-red-600" />
+            </div>
+            <div className="text-center">
+              <h3 className="font-bold text-gray-900 text-lg">Raporu Sil</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                <span className="font-mono font-semibold text-gray-700">{report.reportNumber}</span> numaralı rapor kalıcı olarak silinecek.
+              </p>
+              <p className="text-xs text-red-500 mt-2">Bu işlem geri alınamaz. Bağlı faturalar korunur (rapor bağlantısı kesilir).</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                İptal
+              </button>
+              <button onClick={deleteReport} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50">
+                {deleting ? "Siliniyor..." : "Evet, Sil"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

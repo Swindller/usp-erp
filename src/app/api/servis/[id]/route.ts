@@ -195,3 +195,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   return NextResponse.json({ report });
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  if (!user || user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Sadece Süper Admin silebilir" }, { status: 403 });
+
+  const { id } = await params;
+
+  // Bağlı faturalarda serviceReportId'yi null yap (cascade yok)
+  await prisma.invoice.updateMany({ where: { serviceReportId: id }, data: { serviceReportId: null } });
+  // Raporu sil (ServiceLog'lar cascade ile silinir)
+  await prisma.serviceReport.delete({ where: { id } });
+
+  return NextResponse.json({ ok: true });
+}

@@ -42,6 +42,7 @@ export default async function ServisDetailPage({ params }: Props) {
     if (user?.personnel && report.technicianId !== user.personnel.id) redirect("/servis");
   }
 
-  const canEdit = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(role ?? "");
-  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} />;
+  const canEdit   = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(role ?? "");
+  const canDelete = role === "SUPER_ADMIN";
+  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} canDelete={canDelete} />;
 }
