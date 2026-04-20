@@ -120,7 +120,7 @@ export default function PersonelPage() {
       phone: p.phone ?? "",
       salary: p.salary != null ? String(p.salary) : "",
       permissions: p.permissions,
-      isAdmin: false,
+      isAdmin: ["ADMIN", "SUPER_ADMIN"].includes(p.user.role),
     });
     setError("");
     setShowModal(true);
@@ -156,6 +156,7 @@ export default function PersonelPage() {
             phone: form.phone || null,
             salary: form.salary ? parseFloat(form.salary) : null,
             permissions: form.permissions,
+            isAdmin: form.isAdmin,
           }),
         });
         const data = await res.json();
@@ -395,18 +396,16 @@ export default function PersonelPage() {
               </div>
 
               {/* Admin Yetkisi */}
-              {!editTarget && (
-                <div className={`rounded-xl border px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${form.isAdmin ? "bg-purple-50 border-purple-300" : "bg-gray-50 border-gray-200"}`}
-                  onClick={() => setForm((f) => ({ ...f, isAdmin: !f.isAdmin, permissions: !f.isAdmin ? ALL_PERMISSIONS.map(p => p.key) : f.permissions }))}>
-                  <div>
-                    <p className={`text-sm font-semibold ${form.isAdmin ? "text-purple-800" : "text-gray-700"}`}>Admin Yetkileri Ver</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Personel ekleyebilir, silebilir, tüm sayfalara tam erişim</p>
-                  </div>
-                  <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${form.isAdmin ? "bg-purple-600" : "bg-gray-300"}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.isAdmin ? "translate-x-5" : "translate-x-0.5"}`} />
-                  </div>
+              <div className={`rounded-xl border px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${form.isAdmin ? "bg-purple-50 border-purple-300" : "bg-gray-50 border-gray-200"}`}
+                onClick={() => setForm((f) => ({ ...f, isAdmin: !f.isAdmin, permissions: !f.isAdmin ? ALL_PERMISSIONS.map(p => p.key) : f.permissions }))}>
+                <div>
+                  <p className={`text-sm font-semibold ${form.isAdmin ? "text-purple-800" : "text-gray-700"}`}>Admin Yetkileri Ver</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Personel ekleyebilir, silebilir, tüm sayfalara tam erişim</p>
                 </div>
-              )}
+                <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${form.isAdmin ? "bg-purple-600" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.isAdmin ? "translate-x-5" : "translate-x-0.5"}`} />
+                </div>
+              </div>
 
               {/* Yetki Atama */}
               <div>

@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { hash } from "bcryptjs";
-import { PersonnelRole } from "@prisma/client";
+import { PersonnelRole, UserRole } from "@prisma/client";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -18,6 +18,7 @@ const updateSchema = z.object({
   salary: z.coerce.number().nullable().optional(),
   permissions: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
+  isAdmin: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,7 +29,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = updateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-  const { firstName, lastName, personnelRole, positionTitle, department, speciality, phone, salary, permissions, isActive } = parsed.data;
+  const { firstName, lastName, personnelRole, positionTitle, department, speciality, phone, salary, permissions, isActive, isAdmin } = parsed.data;
+
+  // isAdmin değişti mi → User rolünü güncelle
+  let newUserRole: UserRole | undefined;
+  if (isAdmin === true) newUserRole = "ADMIN";
+  else if (isAdmin === false) {
+    // Admin kaldırıldıysa → pozisyona göre rol belirle
+    newUserRole = personnelRole && ["MANAGER", "SUPERVISOR"].includes(personnelRole) ? "MANAGER" : "TECHNICIAN";
+  }
 
   const personnel = await prisma.personnel.update({
     where: { id },
@@ -41,10 +50,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(salary !== undefined && { salary }),
       ...(permissions !== undefined && { permissions }),
       ...(isActive !== undefined && { isActive }),
-      user: (firstName || lastName) ? {
+      user: (firstName || lastName || newUserRole) ? {
         update: {
           ...(firstName && { firstName }),
           ...(lastName && { lastName }),
+          ...(newUserRole && { role: newUserRole }),
         },
       } : undefined,
     },
