@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Wrench, Users, Banknote, UserCog,
-  LogOut, ChevronRight, Droplets, Shield,
+  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign,
 } from "lucide-react";
 
 const ALL_NAV = [
@@ -13,6 +13,10 @@ const ALL_NAV = [
   { href: "/servis", label: "Servis Raporları", icon: Wrench, permKey: "servis" },
   { href: "/musteriler", label: "Müşteriler", icon: Users, permKey: "musteriler" },
   { href: "/muhasebe", label: "Muhasebe", icon: Banknote, permKey: "muhasebe" },
+  { href: "/stok", label: "Stok Yönetimi", icon: Package, permKey: "stok" },
+  { href: "/bordro", label: "Bordro", icon: DollarSign, permKey: "bordro" },
+  { href: "/devamsizlik", label: "Devamsızlık", icon: CalendarDays, permKey: "devamsizlik" },
+  { href: "/vergiler", label: "Vergi Takibi", icon: Receipt, permKey: "vergiler" },
   { href: "/personel", label: "Personel", icon: UserCog, permKey: "personel" },
 ];
 

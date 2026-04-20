@@ -33,6 +33,10 @@ const ALL_PERMISSIONS = [
   { key: "servis", label: "Servis Yönetimi" },
   { key: "musteriler", label: "Müşteriler" },
   { key: "muhasebe", label: "Muhasebe" },
+  { key: "stok", label: "Stok Yönetimi" },
+  { key: "bordro", label: "Bordro" },
+  { key: "devamsizlik", label: "Devamsızlık" },
+  { key: "vergiler", label: "Vergi Takibi" },
   { key: "personel", label: "Personel" },
 ];
 

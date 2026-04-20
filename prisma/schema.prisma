@@ -610,7 +610,8 @@ model Customer {
   user        User?        @relation(fields: [userId], references: [id])
 
   serviceReports ServiceReport[]
-  invoices       Invoice[]
+  invoices            Invoice[]
+  annualMaintenances  AnnualMaintenance[]
 
   @@index([phone])
   @@index([type])
@@ -643,6 +644,8 @@ model Personnel {
 
   assignedReports ServiceReport[] @relation("AssignedTechnician")
   serviceLogs     ServiceLog[]
+  attendances     Attendance[]
+  payrolls        Payroll[]
 }
 
 // ─── ERP: SERVICE REPORTS ─────────────────────────────────
@@ -881,4 +884,158 @@ model ActivityLog {
   @@index([type])
   @@index([userId])
   @@index([action])
+}
+
+// ─── ERP: STOCK MOVEMENTS ─────────────────────────────────
+
+enum StockMovementType {
+  IN          // Giriş (satın alma)
+  OUT         // Çıkış (servis kullanımı / satış)
+  ADJUSTMENT  // Manuel düzeltme
+  RETURN      // İade
+}
+
+model StockMovement {
+  id          String            @id @default(cuid())
+  productId   String
+  type        StockMovementType
+  quantity    Int
+  unitPrice   Decimal?          @db.Decimal(10, 2)
+  reference   String?           // Servis raporu no, fatura no vb.
+  notes       String?           @db.Text
+  createdAt   DateTime          @default(now())
+  createdBy   String?           // user email
+
+  @@index([productId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+// ─── ERP: ATTENDANCE ──────────────────────────────────────
+
+enum MealType {
+  HOME     // Evde
+  OFFICE   // Ofiste
+  OUTSIDE  // Dışarıda
+  NONE     // Yemedi
+}
+
+model Attendance {
+  id          String     @id @default(cuid())
+  personnelId String
+  personnel   Personnel  @relation(fields: [personnelId], references: [id])
+  date        DateTime   @db.Date
+  checkIn     DateTime?
+  checkOut    DateTime?
+  isAbsent    Boolean    @default(false)
+  absenceReason String?
+  mealType    MealType   @default(OUTSIDE)
+  mealCost    Decimal    @default(0) @db.Decimal(8, 2)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([personnelId, date])
+  @@index([personnelId])
+  @@index([date])
+}
+
+// ─── ERP: PAYROLL ─────────────────────────────────────────
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+model Payroll {
+  id                 String        @id @default(cuid())
+  personnelId        String
+  personnel          Personnel     @relation(fields: [personnelId], references: [id])
+  year               Int
+  month              Int           // 1-12
+  workingDays        Int           @default(0)
+  absenceDays        Int           @default(0)
+  baseSalary         Decimal       @db.Decimal(12, 2)
+  mealAllowance      Decimal       @default(0) @db.Decimal(10, 2)
+  transportAllowance Decimal       @default(0) @db.Decimal(10, 2)
+  otherBonus         Decimal       @default(0) @db.Decimal(10, 2)
+  grossSalary        Decimal       @db.Decimal(12, 2)
+  sgkEmployee        Decimal       @db.Decimal(10, 2) // %14
+  unemploymentEmp    Decimal       @db.Decimal(10, 2) // %1
+  incomeTax          Decimal       @db.Decimal(10, 2)
+  stampTax           Decimal       @db.Decimal(10, 2) // %0.759
+  netSalary          Decimal       @db.Decimal(12, 2)
+  sgkEmployer        Decimal       @db.Decimal(10, 2) // %20.5
+  unemploymentEmp2   Decimal       @db.Decimal(10, 2) // %2
+  totalEmployerCost  Decimal       @db.Decimal(12, 2)
+  status             PayrollStatus @default(DRAFT)
+  paidAt             DateTime?
+  notes              String?       @db.Text
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([personnelId, year, month])
+  @@index([personnelId])
+  @@index([year, month])
+  @@index([status])
+}
+
+// ─── ERP: TAX RECORDS ─────────────────────────────────────
+
+enum TaxType {
+  KDV_BEYANNAME     // Aylık KDV beyannamesi (26.)
+  MUHTASAR          // Aylık muhtasar (23.)
+  SGK_PRIM          // Aylık SGK primi (23.)
+  GECICI_VERGI      // Üç aylık geçici vergi
+  KURUMLAR_VERGISI  // Yıllık kurumlar vergisi (30 Nisan)
+  GELIR_VERGISI     // Yıllık gelir vergisi beyannamesi
+}
+
+enum TaxStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model TaxRecord {
+  id        String    @id @default(cuid())
+  type      TaxType
+  year      Int
+  month     Int?      // 1-12, null for annual
+  quarter   Int?      // 1-4, for GECICI_VERGI
+  baseAmount  Decimal @db.Decimal(14, 2) // matrah
+  taxAmount   Decimal @db.Decimal(14, 2) // hesaplanan vergi
+  kdvDeducted Decimal @default(0) @db.Decimal(14, 2) // indirilecek KDV
+  netTax      Decimal @db.Decimal(14, 2) // ödenecek vergi
+  dueDate   DateTime
+  paidDate  DateTime?
+  status    TaxStatus @default(PENDING)
+  notes     String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+  @@index([year, month])
+}
+
+// ─── ERP: ANNUAL MAINTENANCE ──────────────────────────────
+
+model AnnualMaintenance {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  description String
+  lastDate    DateTime
+  nextDate    DateTime
+  periodMonths Int     @default(12)
+  isActive    Boolean  @default(true)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([nextDate])
 }
