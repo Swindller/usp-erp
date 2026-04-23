@@ -44,6 +44,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     partsCost: report.partsCost?.toString() ?? null,
     totalCost: report.totalCost?.toString() ?? null,
     partsUsed: report.partsUsed as { productId: string; name: string; qty: number; unitPrice: number }[] | null,
+    techSignerName: report.techSignerName ?? null,
+    techSignerRole: report.techSignerRole ?? null,
+    custSignerName: report.custSignerName ?? null,
+    custSignerRole: report.custSignerRole ?? null,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

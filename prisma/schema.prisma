@@ -729,6 +729,11 @@ model ServiceReport {
   customerSignature   String?  @db.Text
   technicianSignature String?  @db.Text
 
+  techSignerName  String?
+  techSignerRole  String?
+  custSignerName  String?
+  custSignerRole  String?
+
   // Maliyet
   laborCost     Decimal?  @db.Decimal(10, 2)
   partsCost     Decimal?  @db.Decimal(10, 2)

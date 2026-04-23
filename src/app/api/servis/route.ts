@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { ServiceStatus, ServiceType, Prisma } from "@prisma/client";
+import { ServiceStatus, ServiceType, InvoiceType, InvoiceStatus, Prisma } from "@prisma/client";
 
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
@@ -91,6 +91,10 @@ const createSchema = z.object({
   customerNote: z.string().optional(),
   customerSignature: z.string().optional(),
   technicianSignature: z.string().optional(),
+  techSignerName: z.string().optional(),
+  techSignerRole: z.string().optional(),
+  custSignerName: z.string().optional(),
+  custSignerRole: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -133,6 +137,10 @@ export async function POST(req: NextRequest) {
       customerNote: data.customerNote,
       customerSignature: data.customerSignature,
       technicianSignature: data.technicianSignature,
+      techSignerName: data.techSignerName,
+      techSignerRole: data.techSignerRole,
+      custSignerName: data.custSignerName,
+      custSignerRole: data.custSignerRole,
       logs: {
         create: {
           type: "STATUS_CHANGE",
@@ -144,6 +152,58 @@ export async function POST(req: NextRequest) {
     },
     include: { customer: true },
   });
+
+  // Saha servisi → otomatik READY + email
+  if (data.serviceType === "FIELD") {
+    await prisma.serviceReport.update({
+      where: { id: report.id },
+      data: {
+        status: "READY",
+        completedAt: new Date(),
+      },
+    });
+
+    // Draft fatura oluştur
+    const invoiceYear = new Date().getFullYear();
+    const invCount = await prisma.invoice.count({ where: { invoiceNumber: { startsWith: `INV-${invoiceYear}-` } } });
+    const invoiceNumber = `INV-${invoiceYear}-${String(invCount + 1).padStart(4, "0")}`;
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
+    await prisma.invoice.create({
+      data: {
+        invoiceNumber,
+        type: InvoiceType.SERVICE,
+        status: InvoiceStatus.DRAFT,
+        customerId: report.customerId,
+        serviceReportId: report.id,
+        subtotal: 0,
+        vatRate: 20,
+        vatAmount: 0,
+        total: 0,
+        lineItems: [{ description: "Saha Servis Ücreti", qty: 1, unitPrice: 0, vatRate: 20, lineTotal: 0 }] as Prisma.InputJsonValue,
+        dueDate,
+        customerSnapshot: {} as Prisma.InputJsonValue,
+      },
+    });
+
+    // Müşteriye email gönder (RESEND_API_KEY varsa)
+    const resendKey = process.env.RESEND_API_KEY;
+    const customerEmail = report.customer.email;
+    if (resendKey && customerEmail) {
+      const cNameStr = report.customer.type === "CORPORATE"
+        ? report.customer.companyName || "Müşteri"
+        : [report.customer.firstName, report.customer.lastName].filter(Boolean).join(" ") || "Müşteri";
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: process.env.FROM_EMAIL || "servis@ugursupompalari.com.tr",
+          to: customerEmail,
+          subject: `Saha Servis Raporunuz - ${report.reportNumber}`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><div style="background:#1e40af;color:white;padding:20px"><h2 style="margin:0">UĞUR SU POMPALARI</h2><p style="margin:4px 0 0;opacity:.85">Saha Servis Raporu</p></div><div style="padding:20px"><p>Sayın <strong>${cNameStr}</strong>,</p><p>Saha servisiniz tamamlanmıştır. Servis raporu numaranız: <strong>${report.reportNumber}</strong></p><p>Herhangi bir sorunuz için: <strong>0549 629 19 12</strong></p></div><div style="background:#1e3a8a;color:#93c5fd;padding:12px;text-align:center;font-size:11px">www.ugursupompalari.com.tr</div></div>`,
+        }),
+      }).catch(() => {}); // Email hatası raporu bloklamasın
+    }
+  }
 
   return NextResponse.json({ report }, { status: 201 });
 }

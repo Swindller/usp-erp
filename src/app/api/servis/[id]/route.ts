@@ -76,6 +76,10 @@ const updateSchema = z.object({
   completedAt: z.string().nullable().optional(),
   deliveredAt: z.string().nullable().optional(),
   estimatedCompletionDate: z.string().nullable().optional(),
+  techSignerName: z.string().nullable().optional(),
+  techSignerRole: z.string().nullable().optional(),
+  custSignerName: z.string().nullable().optional(),
+  custSignerRole: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -125,6 +129,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.completedAt !== undefined) updateData.completedAt = data.completedAt ? new Date(data.completedAt) : null;
   if (data.deliveredAt !== undefined) updateData.deliveredAt = data.deliveredAt ? new Date(data.deliveredAt) : null;
   if (data.estimatedCompletionDate !== undefined) updateData.estimatedCompletionDate = data.estimatedCompletionDate ? new Date(data.estimatedCompletionDate) : null;
+  if (data.techSignerName !== undefined) updateData.techSignerName = data.techSignerName;
+  if (data.techSignerRole !== undefined) updateData.techSignerRole = data.techSignerRole;
+  if (data.custSignerName !== undefined) updateData.custSignerName = data.custSignerName;
+  if (data.custSignerRole !== undefined) updateData.custSignerRole = data.custSignerRole;
 
   const isTransitionToReady = data.status === ServiceStatus.READY && existing.status !== ServiceStatus.READY;
 

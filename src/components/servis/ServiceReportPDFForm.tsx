@@ -34,14 +34,13 @@ interface Props {
 
 type ServiceType = "WORKSHOP" | "FIELD" | "WARRANTY" | "PERIODIC";
 interface PartRow {
-  kod: string;
   ad: string;
-  bedel: string;
+  adet: string;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const EMPTY_PARTS: PartRow[] = Array.from({ length: 5 }, () => ({ kod: "", ad: "", bedel: "" }));
+const EMPTY_PARTS: PartRow[] = Array.from({ length: 5 }, () => ({ ad: "", adet: "" }));
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -211,6 +210,12 @@ export function ServiceReportPDFForm({ personnel }: Props) {
   const [customerSig, setCustomerSig] = useState<string | null>(null);
   const [techSig, setTechSig] = useState<string | null>(null);
 
+  // Signer info
+  const [techSignerName, setTechSignerName] = useState("");
+  const [techSignerRole, setTechSignerRole] = useState("Teknik Servis Uzmanı");
+  const [custSignerName, setCustSignerName] = useState("");
+  const [custSignerRole, setCustSignerRole] = useState("");
+
   // Submit state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -240,6 +245,11 @@ export function ServiceReportPDFForm({ personnel }: Props) {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  // Müşteri seçilince custSignerName otomatik doldur
+  useEffect(() => {
+    if (customer) setCustSignerName(cName(customer));
+  }, [customer]);
+
   // ── Submit ───────────────────────────────────────────────────
   const handleSubmit = async (andDownload = false) => {
     if (!customer) { setError("Müşteri seçiniz"); return; }
@@ -251,10 +261,11 @@ export function ServiceReportPDFForm({ personnel }: Props) {
     const partsUsed = parts
       .filter((p) => p.ad.trim())
       .map((p) => ({
-        productId: p.kod.trim() || "manual",
+        productId: "manual",
         name: p.ad.trim(),
-        qty: 1,
-        unitPrice: p.bedel ? parseFloat(p.bedel.replace(",", ".")) : null,
+        partNo: "",
+        quantity: parseInt(p.adet) || 1,
+        unitPrice: 0,
       }));
 
     const notes = [
@@ -280,6 +291,10 @@ export function ServiceReportPDFForm({ personnel }: Props) {
       internalNotes: notes || undefined,
       customerSignature: customerSig || undefined,
       technicianSignature: techSig || undefined,
+      techSignerName: techSignerName || undefined,
+      techSignerRole: techSignerRole || undefined,
+      custSignerName: custSignerName || undefined,
+      custSignerRole: custSignerRole || undefined,
     };
 
     try {
@@ -535,8 +550,12 @@ export function ServiceReportPDFForm({ personnel }: Props) {
               placeholder="Seri numarası" className={inp} />
           </LabelVal>
           <LabelVal label="Üretim Tarihi:" className="flex-1 border-r border-gray-300">
-            <input value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)}
-              placeholder="Yıl" className={inp + " max-w-[60px]"} />
+            <select value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)} className={inp}>
+              <option value="">Seçin</option>
+              {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                <option key={y} value={String(y)}>{y}</option>
+              ))}
+            </select>
           </LabelVal>
           <LabelVal label="Üretim Yeri:" className="flex-1">
             <input value={devicePower} onChange={(e) => setDevicePower(e.target.value)}
@@ -657,28 +676,22 @@ export function ServiceReportPDFForm({ personnel }: Props) {
         <div className="border-b border-gray-300">
           {/* Header */}
           <div className="flex border-b border-gray-200">
-            <div className="w-[22%] border-r border-gray-300 bg-[#1e40af] text-white text-[10px] font-bold px-2 py-0.5">Kodu</div>
             <div className="flex-1 border-r border-gray-300 bg-[#1e40af] text-white text-[10px] font-bold px-2 py-0.5">Adı</div>
-            <div className="w-[20%] bg-[#1e40af] text-white text-[10px] font-bold px-2 py-0.5">Bedeli</div>
+            <div className="w-16 bg-[#1e40af] text-white text-[10px] font-bold px-2 py-0.5">Adedi</div>
           </div>
           {/* Rows */}
           {parts.map((part, i) => (
             <div key={i} className="flex border-b border-gray-100 last:border-0 min-h-[16px]">
-              <div className="w-[22%] border-r border-gray-200 px-1.5 py-0.5 flex items-center gap-0.5">
+              <div className="flex-1 border-r border-gray-200 px-1.5 py-0.5 flex items-center gap-0.5">
                 <span className="text-[#1e3a8a] font-bold text-[10px] flex-shrink-0">{i + 1}:</span>
-                <input value={part.kod}
-                  onChange={(e) => setParts(parts.map((r, j) => j === i ? { ...r, kod: e.target.value } : r))}
-                  className={inp} placeholder="Kod" />
-              </div>
-              <div className="flex-1 border-r border-gray-200 px-1.5 py-0.5">
                 <input value={part.ad}
                   onChange={(e) => setParts(parts.map((r, j) => j === i ? { ...r, ad: e.target.value } : r))}
                   className={inp} placeholder="Malzeme adı" />
               </div>
-              <div className="w-[20%] px-1.5 py-0.5">
-                <input value={part.bedel}
-                  onChange={(e) => setParts(parts.map((r, j) => j === i ? { ...r, bedel: e.target.value } : r))}
-                  className={inp} placeholder="₺ 0.00" />
+              <div className="w-16 px-1.5 py-0.5">
+                <input value={part.adet}
+                  onChange={(e) => setParts(parts.map((r, j) => j === i ? { ...r, adet: e.target.value } : r))}
+                  className={inp} placeholder="1" />
               </div>
             </div>
           ))}
@@ -689,8 +702,8 @@ export function ServiceReportPDFForm({ personnel }: Props) {
           {/* Düzenleyen */}
           <div className="flex-1 border-r border-gray-300 p-2">
             <div className="font-bold text-[#1e3a8a] text-[10px] mb-1.5">Düzenleyen</div>
-            <div className="text-[10px] mb-1 flex items-center gap-1">
-              <span className="flex-shrink-0">Adı ve Soyadı:</span>
+            <div className="text-[10px] mb-0.5 flex items-center gap-1">
+              <span className="flex-shrink-0 text-[#1e3a8a] font-bold">Teknisyen:</span>
               <select value={technicianId} onChange={(e) => setTechnicianId(e.target.value)}
                 className="border-0 outline-none bg-transparent text-[11px] cursor-pointer flex-1">
                 <option value="">— Teknisyen seç —</option>
@@ -701,8 +714,14 @@ export function ServiceReportPDFForm({ personnel }: Props) {
                 ))}
               </select>
             </div>
-            <div className="text-[10px] mb-1">Görevi: Teknik Servis Uzmanı</div>
-            <div className="text-[10px] mb-1">Onay:</div>
+            <div className="text-[10px] mb-0.5 flex items-center gap-1">
+              <span className="flex-shrink-0 text-[#1e3a8a] font-bold">Adı ve Soyadı:</span>
+              <input value={techSignerName} onChange={(e) => setTechSignerName(e.target.value)} className={inp} placeholder="İsim" />
+            </div>
+            <div className="text-[10px] mb-0.5 flex items-center gap-1">
+              <span className="flex-shrink-0 text-[#1e3a8a] font-bold">Görevi:</span>
+              <input value={techSignerRole} onChange={(e) => setTechSignerRole(e.target.value)} className={inp} placeholder="Görev" />
+            </div>
             <div className="text-[10px] mb-1">İmza:</div>
             <SignaturePad ref={techSigRef} label="" value={techSig || undefined} onChange={setTechSig} />
           </div>
@@ -710,11 +729,14 @@ export function ServiceReportPDFForm({ personnel }: Props) {
           {/* Müşteri Onayı */}
           <div className="flex-1 p-2">
             <div className="font-bold text-[#1e3a8a] text-[10px] mb-1.5">Müşteri Onayı</div>
-            <div className="text-[10px] mb-1">
-              Adı ve Soyadı: <span className="font-medium">{customer ? cName(customer) : ""}</span>
+            <div className="text-[10px] mb-0.5 flex items-center gap-1">
+              <span className="flex-shrink-0 text-[#1e3a8a] font-bold">Adı ve Soyadı:</span>
+              <input value={custSignerName} onChange={(e) => setCustSignerName(e.target.value)} className={inp} placeholder="İsim" />
             </div>
-            <div className="text-[10px] mb-1">Görevi:</div>
-            <div className="text-[10px] mb-1">Onay:</div>
+            <div className="text-[10px] mb-0.5 flex items-center gap-1">
+              <span className="flex-shrink-0 text-[#1e3a8a] font-bold">Görevi:</span>
+              <input value={custSignerRole} onChange={(e) => setCustSignerRole(e.target.value)} className={inp} placeholder="Görev" />
+            </div>
             <div className="text-[10px] mb-1">İmza:</div>
             <SignaturePad ref={customerSigRef} label="" value={customerSig || undefined} onChange={setCustomerSig} />
           </div>

@@ -1,6 +1,6 @@
 import path from "path";
 import {
-  Document, Page, Text, View, StyleSheet, Font,
+  Document, Page, Text, View, StyleSheet, Font, Image,
 } from "@react-pdf/renderer";
 
 // ── Noto Sans (Unicode – Turkish chars + ₺) ────────────────────────────────
@@ -106,6 +106,10 @@ interface ReportPDFProps {
     customerSignature: string | null;
     technicianSignature: string | null;
     partsUsed: PartItem[] | null;
+    techSignerName: string | null;
+    techSignerRole: string | null;
+    custSignerName: string | null;
+    custSignerRole: string | null;
     customer: {
       type: string;
       firstName: string | null;
@@ -169,18 +173,6 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   WARRANTY: "Garanti",
   PERIODIC: "Periyodik",
 };
-
-// Status listesi — düz string (JSX'te escape yok)
-const STATUS_LIST = [
-  { key: "RECEIVED",      label: "Sıra Bekliyor" },
-  { key: "DIAGNOSING",    label: "Serviste Onaylanıyor" },
-  { key: "WAITING_PARTS", label: "Parça Bekliyor" },
-  { key: "IN_REPAIR",     label: "Onarımda" },
-  { key: "QUALITY_CHECK", label: "Kontrol Aşamasında" },
-  { key: "READY",         label: "Hazır" },
-  { key: "DELIVERED",     label: "Teslim Edildi" },
-  { key: "CANCELLED",     label: "İptal" },
-];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ServiceReportPDF({ report }: ReportPDFProps) {
@@ -357,13 +349,10 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
           </View>
         )}
 
-        {/* ── Durum / Bakım / Müdahale ── */}
+        {/* ── Bakım Şekli + Müdahale Yeri (2 kolon, Ürünün Durumu kaldırıldı) ── */}
         <View style={[s.table, { marginTop: 4 }]}>
           <View style={s.row}>
-            <View style={[s.headerCell, { flex: 1.5 }]}>
-              <Text style={s.headerText}>Ürünün Durumu</Text>
-            </View>
-            <View style={[s.headerCell, { flex: 1, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
+            <View style={[s.headerCell, { flex: 1 }]}>
               <Text style={s.headerText}>Bakım Şekli</Text>
             </View>
             <View style={[s.headerCell, { flex: 1, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
@@ -371,13 +360,6 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
             </View>
           </View>
           <View style={s.rowLast}>
-            <View style={[s.cell, { flex: 1.5, padding: "4 6" }]}>
-              <View style={s.checkRow}>
-                {STATUS_LIST.map((st) => (
-                  <Checkbox key={st.key} checked={report.status === st.key} label={st.label} />
-                ))}
-              </View>
-            </View>
             <View style={[s.cell, { flex: 1, padding: "4 6" }]}>
               <View style={s.checkRow}>
                 <Checkbox checked={report.isWarranty}  label="Garantili" />
@@ -397,80 +379,73 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
         <Text style={s.sectionHeader}>KULLANILAN MALZEMELER</Text>
         <View style={s.table}>
           <View style={s.row}>
-            <View style={[s.headerCell, { flex: 1 }]}>
-              <Text style={s.headerText}>Kodu</Text>
-            </View>
-            <View style={[s.headerCell, { flex: 3, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
+            <View style={[s.headerCell, { flex: 4 }]}>
               <Text style={s.headerText}>Adı</Text>
             </View>
-            <View style={[s.headerCell, { flex: 1.5, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
-              <Text style={s.headerText}>Bedeli (KDV Hariç)</Text>
+            <View style={[s.headerCell, { flex: 1, borderLeftWidth: 1, borderLeftColor: "#ffffff40" }]}>
+              <Text style={s.headerText}>Adedi</Text>
             </View>
           </View>
           {Array.from({ length: 5 }).map((_, i) => {
             const part   = parts[i];
             const isLast = i === 4;
-            const total  = part ? part.qty * (part.unitPrice ?? 0) : null;
             return (
               <View key={i} style={isLast ? s.rowLast : s.row}>
-                <View style={[s.cell, { flex: 1, minHeight: 12 }]}>
-                  <Text style={s.value}>{i + 1}: {part ? (part.productId?.slice(0, 8) ?? "—") : ""}</Text>
+                <View style={[s.cell, { flex: 4, minHeight: 12 }]}>
+                  <Text style={s.value}>{i + 1}: {part?.name ?? ""}</Text>
                 </View>
-                <View style={[s.cell, { flex: 3, minHeight: 12 }]}>
-                  <Text style={s.value}>{part?.name ?? ""}</Text>
-                </View>
-                <View style={[s.cellLast, { flex: 1.5, minHeight: 12 }]}>
-                  <Text style={s.value}>{total !== null ? fmtTL(total) : ""}</Text>
+                <View style={[s.cellLast, { flex: 1, minHeight: 12 }]}>
+                  <Text style={s.value}>{part ? part.qty : ""}</Text>
                 </View>
               </View>
             );
           })}
         </View>
 
-        {/* ── Ödeme Şekli ── */}
-        <View style={[s.table, { marginTop: 4 }]}>
-          <View style={s.rowLast}>
-            <View style={[s.cell, { flex: 1, padding: "4 6" }]}>
-              <Text style={s.label}>Ödeme Şekli: (KDV Hariç)</Text>
-              <View style={[s.checkRow, { marginTop: 4 }]}>
-                <Checkbox checked={false} label="Nakit" />
-                <Checkbox checked={false} label="Havale" />
-                <Checkbox checked={false} label="Cari" />
-                <Checkbox checked={false} label="Fatura" />
-                <Checkbox checked={false} label="Çek" />
-              </View>
-            </View>
-            <View style={[s.cellLast, { flex: 1, padding: "4 6" }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={s.label}>
-                  İşçilik: <Text style={s.value}>{fmtTL(report.laborCost)}</Text>
-                </Text>
-                <Text style={s.label}>
-                  Parça: <Text style={s.value}>{fmtTL(report.partsCost)}</Text>
-                </Text>
-                <Text style={[s.label, { color: blue }]}>
-                  Toplam: <Text style={[s.value, { fontWeight: 700, color: blue }]}>{fmtTL(report.totalCost)}</Text>
-                </Text>
+        {/* ── Toplam Maliyet (sadece varsa) ── */}
+        {report.totalCost && (
+          <View style={[s.table, { marginTop: 4 }]}>
+            <View style={s.rowLast}>
+              <View style={[s.cellLast, { flex: 1, padding: "4 6" }]}>
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
+                  {report.laborCost && (
+                    <Text style={s.label}>
+                      İşçilik: <Text style={s.value}>{fmtTL(report.laborCost)}</Text>
+                    </Text>
+                  )}
+                  {report.partsCost && (
+                    <Text style={s.label}>
+                      Parça: <Text style={s.value}>{fmtTL(report.partsCost)}</Text>
+                    </Text>
+                  )}
+                  <Text style={[s.label, { color: blue }]}>
+                    Toplam: <Text style={[s.value, { fontWeight: 700, color: blue }]}>{fmtTL(report.totalCost)}</Text>
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* ── İmzalar ── */}
         <View style={s.signArea}>
           <View style={s.signCell}>
             <Text style={s.signTitle}>Düzenleyen (Teknisyen)</Text>
-            <Text style={s.signField}>Adı ve Soyadı: {techName}</Text>
-            <Text style={s.signField}>Görevi: Teknik Servis Uzmanı</Text>
-            <Text style={s.signField}>Onay:</Text>
+            <Text style={s.signField}>Adı ve Soyadı: {report.techSignerName || techName}</Text>
+            <Text style={s.signField}>Görevi: {report.techSignerRole || "Teknik Servis Uzmanı"}</Text>
             <Text style={[s.signField, { marginTop: 2 }]}>İmza:</Text>
+            {report.technicianSignature && (
+              <Image src={report.technicianSignature} style={{ height: 35, marginTop: 2, objectFit: "contain" }} />
+            )}
           </View>
           <View style={s.signCellLast}>
             <Text style={s.signTitle}>Müşteri Onayı</Text>
-            <Text style={s.signField}>Adı ve Soyadı: {customerName(c)}</Text>
-            <Text style={s.signField}>Görevi:</Text>
-            <Text style={s.signField}>Onay:</Text>
+            <Text style={s.signField}>Adı ve Soyadı: {report.custSignerName || customerName(c)}</Text>
+            <Text style={s.signField}>Görevi: {report.custSignerRole || ""}</Text>
             <Text style={[s.signField, { marginTop: 2 }]}>İmza:</Text>
+            {report.customerSignature && (
+              <Image src={report.customerSignature} style={{ height: 35, marginTop: 2, objectFit: "contain" }} />
+            )}
           </View>
         </View>
 

@@ -251,8 +251,8 @@ export function ServiceReportDetail({
   const [partsRequests, setPartsRequests] = useState<PartsRequest[]>(report.partsRequests || []);
   const [loadingPartsReqs, setLoadingPartsReqs] = useState(false);
   const [showPartsReqModal, setShowPartsReqModal] = useState(false);
-  const [newReqParts, setNewReqParts] = useState<{ name: string; code: string; qty: number; unitPrice: number }[]>([
-    { name: "", code: "", qty: 1, unitPrice: 0 },
+  const [newReqParts, setNewReqParts] = useState<{ name: string; qty: string }[]>([
+    { name: "", qty: "1" },
   ]);
   const [newReqNotes, setNewReqNotes] = useState("");
   const [submittingReq, setSubmittingReq] = useState(false);
@@ -436,13 +436,16 @@ export function ServiceReportDetail({
       const res = await fetch(`/api/servis/${report.id}/parca-talebi`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parts: validParts, notes: newReqNotes || undefined }),
+        body: JSON.stringify({
+        parts: validParts.map((r) => ({ name: r.name.trim(), qty: parseInt(r.qty) || 1 })),
+        notes: newReqNotes || undefined,
+      }),
       });
       const data = await res.json();
       if (!res.ok) { setReqError(typeof data.error === "string" ? data.error : "Hata oluştu"); return; }
       setPartsRequests((prev) => [data.request, ...prev]);
       setShowPartsReqModal(false);
-      setNewReqParts([{ name: "", code: "", qty: 1, unitPrice: 0 }]);
+      setNewReqParts([{ name: "", qty: "1" }]);
       setNewReqNotes("");
       // Status changed to WAITING_PARTS in API
       setReport((r) => ({ ...r, status: "WAITING_PARTS" as ServiceStatus }));
@@ -1223,33 +1226,22 @@ export function ServiceReportDetail({
 
               {/* Parts rows */}
               <div>
-                <div className="grid grid-cols-[1fr_80px_60px_70px_20px] gap-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-0.5 mb-1.5">
-                  <span>Parça Adı</span><span>Kod</span><span className="text-center">Adet</span><span className="text-right">Birim ₺</span><span />
+                <div className="flex gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-0.5 mb-1.5">
+                  <span className="flex-1">Parça Adı</span><span className="w-16 text-center">Adet</span><span className="w-5" />
                 </div>
                 <div className="space-y-1.5">
                   {newReqParts.map((p, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_60px_70px_20px] gap-1.5 items-center">
+                    <div key={i} className="flex gap-2 items-center">
                       <input
                         value={p.name}
                         onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, name: e.target.value } : r))}
                         placeholder="Parça adı *"
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 min-w-0"
-                      />
-                      <input
-                        value={p.code}
-                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, code: e.target.value } : r))}
-                        placeholder="Kod"
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 min-w-0"
                       />
                       <input
                         type="number" min="1" value={p.qty}
-                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, qty: parseInt(e.target.value) || 1 } : r))}
-                        className="border border-gray-200 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
-                      />
-                      <input
-                        type="number" min="0" step="0.01" value={p.unitPrice}
-                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, unitPrice: parseFloat(e.target.value) || 0 } : r))}
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, qty: e.target.value } : r))}
+                        className="w-16 border border-gray-200 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
                       />
                       <button type="button" onClick={() => setNewReqParts((prev) => prev.filter((_, j) => j !== i))}
                         className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
@@ -1259,7 +1251,7 @@ export function ServiceReportDetail({
                   ))}
                 </div>
                 <button type="button"
-                  onClick={() => setNewReqParts((prev) => [...prev, { name: "", code: "", qty: 1, unitPrice: 0 }])}
+                  onClick={() => setNewReqParts((prev) => [...prev, { name: "", qty: "1" }])}
                   className="mt-2 flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 transition-colors">
                   <Plus size={12} />Satır Ekle
                 </button>
