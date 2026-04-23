@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Package, Plus, Minus, X, Search, ArrowUpCircle, ArrowDownCircle,
-  RefreshCw, RotateCcw, AlertTriangle, PackageOpen,
+  RefreshCw, RotateCcw, AlertTriangle, PackageOpen, CloudDownload,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -86,6 +86,8 @@ export default function StokPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState(q);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string>("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -167,6 +169,25 @@ export default function StokPage() {
     } finally { setSaving(false); }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncResult("");
+    try {
+      const res = await fetch("/api/erp/sync-products", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setSyncResult(`Hata: ${json.error || "Bilinmeyen hata"}`);
+      } else {
+        setSyncResult(`Tamamlandı — Yeni: ${json.created}, Güncellendi: ${json.updated}, Atlandı: ${json.skipped}`);
+        load();
+      }
+    } catch {
+      setSyncResult("Bağlantı hatası");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const stockColor = (stock: number) => {
     if (stock <= 0) return "text-red-600 font-semibold";
     if (stock < 5) return "text-orange-500 font-semibold";
@@ -184,6 +205,19 @@ export default function StokPage() {
           <p className="text-sm text-gray-500 mt-1">
             {data ? `${data.total} ürün` : "Yükleniyor..."}
           </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition"
+          >
+            <CloudDownload size={16} />
+            {syncing ? "Senkronize ediliyor..." : "E-ticaretten Senkronize Et"}
+          </button>
+          {syncResult && (
+            <p className="text-xs text-gray-500">{syncResult}</p>
+          )}
         </div>
       </div>
 
