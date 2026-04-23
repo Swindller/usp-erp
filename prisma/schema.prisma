@@ -648,6 +648,8 @@ model Personnel {
   serviceLogs           ServiceLog[]
   attendances     Attendance[]
   payrolls        Payroll[]
+  partsRequested    PartsRequest[] @relation("PartsRequester")
+  partsApproved     PartsRequest[] @relation("PartsApprover")
 }
 
 // ─── ERP: SERVICE REPORTS ─────────────────────────────────
@@ -655,6 +657,7 @@ model Personnel {
 enum ServiceStatus {
   RECEIVED       // Teslim Alındı
   DIAGNOSING     // Teşhis Yapılıyor
+  DIAGNOSED      // Tespit Yapıldı
   WAITING_PARTS  // Parça Bekleniyor
   IN_REPAIR      // Tamirde
   QUALITY_CHECK  // Kalite Kontrolde
@@ -710,6 +713,9 @@ model ServiceReport {
   completedAt    DateTime?
   deliveredAt    DateTime?
 
+  // Tahmini tamamlanma
+  estimatedCompletionDate DateTime?
+
   // Garanti
   isWarranty    Boolean   @default(false)
   warrantyUntil DateTime?
@@ -735,6 +741,7 @@ model ServiceReport {
   logs                  ServiceLog[]
   invoices              Invoice[]
   additionalTechnicians Personnel[] @relation("AdditionalTechnicians")
+  partsRequests         PartsRequest[]
 
   @@index([customerId])
   @@index([status])
@@ -1023,6 +1030,40 @@ model TaxRecord {
   @@index([status])
   @@index([dueDate])
   @@index([year, month])
+}
+
+// ─── ERP: PARTS REQUESTS ──────────────────────────────────
+
+enum PartsRequestStatus {
+  PENDING
+  APPROVED
+  DELIVERED
+  REJECTED
+}
+
+model PartsRequest {
+  id              String             @id @default(cuid())
+  serviceReportId String
+  serviceReport   ServiceReport      @relation(fields: [serviceReportId], references: [id], onDelete: Cascade)
+
+  requestedById   String
+  requestedBy     Personnel          @relation("PartsRequester", fields: [requestedById], references: [id])
+
+  approvedById    String?
+  approvedBy      Personnel?         @relation("PartsApprover", fields: [approvedById], references: [id])
+
+  status          PartsRequestStatus @default(PENDING)
+  parts           Json               // [{name, code, qty, unitPrice}]
+  notes           String?            @db.Text
+
+  approvedAt      DateTime?
+  deliveredAt     DateTime?
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([serviceReportId])
+  @@index([status])
 }
 
 // ─── ERP: ANNUAL MAINTENANCE ──────────────────────────────

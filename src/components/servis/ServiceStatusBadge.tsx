@@ -2,19 +2,20 @@
 
 import { ServiceStatus } from "@prisma/client";
 
-const STATUS_CONFIG: Record<
+export const STATUS_CONFIG: Record<
   ServiceStatus,
   { label: string; classes: string }
 > = {
-  RECEIVED:       { label: "Teslim Alındı",     classes: "bg-blue-100 text-blue-800 border-blue-200" },
-  DIAGNOSING:     { label: "Teşhis Yapılıyor",  classes: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-  WAITING_PARTS:  { label: "Parça Bekleniyor",  classes: "bg-orange-100 text-orange-800 border-orange-200" },
-  IN_REPAIR:      { label: "Tamirde",           classes: "bg-purple-100 text-purple-800 border-purple-200" },
-  QUALITY_CHECK:  { label: "Kalite Kontrolde",  classes: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  READY:          { label: "Teslime Hazır",     classes: "bg-green-100 text-green-800 border-green-200" },
-  DELIVERED:      { label: "Teslim Edildi",     classes: "bg-gray-100 text-gray-700 border-gray-200" },
-  CANCELLED:      { label: "İptal Edildi",      classes: "bg-red-100 text-red-700 border-red-200" },
-  WARRANTY_RETURN:{ label: "Garanti İadesi",    classes: "bg-pink-100 text-pink-800 border-pink-200" },
+  RECEIVED:        { label: "Servise Geldi",     classes: "bg-blue-100 text-blue-800 border-blue-200" },
+  DIAGNOSING:      { label: "İnceleniyor",        classes: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  DIAGNOSED:       { label: "Tespit Yapıldı",     classes: "bg-amber-100 text-amber-800 border-amber-200" },
+  WAITING_PARTS:   { label: "Parça Bekliyor",     classes: "bg-orange-100 text-orange-800 border-orange-200" },
+  IN_REPAIR:       { label: "Montaj Yapılıyor",   classes: "bg-purple-100 text-purple-800 border-purple-200" },
+  QUALITY_CHECK:   { label: "Test Ediliyor",      classes: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  READY:           { label: "Teslime Hazır",      classes: "bg-green-100 text-green-800 border-green-200" },
+  DELIVERED:       { label: "Teslim Edildi",      classes: "bg-gray-100 text-gray-700 border-gray-200" },
+  CANCELLED:       { label: "İptal",              classes: "bg-red-100 text-red-700 border-red-200" },
+  WARRANTY_RETURN: { label: "Garanti İadesi",     classes: "bg-pink-100 text-pink-800 border-pink-200" },
 };
 
 interface Props {
@@ -38,5 +39,3 @@ export function ServiceStatusBadge({ status, size = "md" }: Props) {
     </span>
   );
 }
-
-export { STATUS_CONFIG };

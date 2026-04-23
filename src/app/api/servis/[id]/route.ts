@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { ServiceStatus, ServiceType, InvoiceType, InvoiceStatus, Prisma } from "@prisma/client";
@@ -11,10 +10,10 @@ function toNum(val: Prisma.Decimal | null | undefined): number { return val ? pa
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 async function checkAuth() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return null;
-  const user = await prisma.user.findUnique({ where: { email: session.user.email }, include: { personnel: true } });
-  if (!user || !ALLOWED_ROLES.includes(user.role)) return null;
+  const authUser = await getAuthUser();
+  if (!authUser || !ALLOWED_ROLES.includes(authUser.role)) return null;
+  const user = await prisma.user.findUnique({ where: { email: authUser.email }, include: { personnel: true } });
+  if (!user) return null;
   return user;
 }
 
@@ -47,9 +46,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 const STATUS_LABELS: Record<ServiceStatus, string> = {
-  RECEIVED: "Teslim Alındı", DIAGNOSING: "Teşhis Yapılıyor", WAITING_PARTS: "Parça Bekleniyor",
-  IN_REPAIR: "Tamirde", QUALITY_CHECK: "Kalite Kontrolde", READY: "Teslime Hazır",
-  DELIVERED: "Teslim Edildi", CANCELLED: "İptal Edildi", WARRANTY_RETURN: "Garanti İadesi",
+  RECEIVED: "Servise Geldi", DIAGNOSING: "İnceleniyor", DIAGNOSED: "Tespit Yapıldı",
+  WAITING_PARTS: "Parça Bekliyor", IN_REPAIR: "Montaj Yapılıyor", QUALITY_CHECK: "Test Ediliyor",
+  READY: "Teslime Hazır", DELIVERED: "Teslim Edildi", CANCELLED: "İptal", WARRANTY_RETURN: "Garanti İadesi",
 };
 
 const updateSchema = z.object({
@@ -76,6 +75,7 @@ const updateSchema = z.object({
   technicianSignature: z.string().optional(),
   completedAt: z.string().nullable().optional(),
   deliveredAt: z.string().nullable().optional(),
+  estimatedCompletionDate: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -124,6 +124,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.technicianSignature !== undefined) updateData.technicianSignature = data.technicianSignature;
   if (data.completedAt !== undefined) updateData.completedAt = data.completedAt ? new Date(data.completedAt) : null;
   if (data.deliveredAt !== undefined) updateData.deliveredAt = data.deliveredAt ? new Date(data.deliveredAt) : null;
+  if (data.estimatedCompletionDate !== undefined) updateData.estimatedCompletionDate = data.estimatedCompletionDate ? new Date(data.estimatedCompletionDate) : null;
 
   const isTransitionToReady = data.status === ServiceStatus.READY && existing.status !== ServiceStatus.READY;
 
@@ -205,10 +206,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user || user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Sadece Süper Admin silebilir" }, { status: 403 });
+  const authUser = await getAuthUser();
+  if (!authUser) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (authUser.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Sadece Süper Admin silebilir" }, { status: 403 });
 
   const { id } = await params;
 

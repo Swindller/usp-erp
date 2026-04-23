@@ -33,13 +33,6 @@ interface Props {
 }
 
 type ServiceType = "WORKSHOP" | "FIELD" | "WARRANTY" | "PERIODIC";
-type ServiceStatus =
-  | "RECEIVED"
-  | "DIAGNOSING"
-  | "WAITING_PARTS"
-  | "IN_REPAIR"
-  | "READY";
-
 interface PartRow {
   kod: string;
   ad: string;
@@ -47,14 +40,6 @@ interface PartRow {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const STATUS_OPTIONS: { key: ServiceStatus; label: string }[] = [
-  { key: "RECEIVED",      label: "Sıra Bekliyor" },
-  { key: "DIAGNOSING",    label: "Serviste Onaylanıyor" },
-  { key: "WAITING_PARTS", label: "Parça Bekliyor" },
-  { key: "IN_REPAIR",     label: "Ödeme Bekliyor" },
-  { key: "READY",         label: "Hazır" },
-];
 
 const EMPTY_PARTS: PartRow[] = Array.from({ length: 5 }, () => ({ kod: "", ad: "", bedel: "" }));
 
@@ -206,7 +191,6 @@ export function ServiceReportPDFForm({ personnel }: Props) {
   // Form fields
   const [serviceType, setServiceType] = useState<ServiceType>("WORKSHOP");
   const [isWarranty, setIsWarranty] = useState(false);
-  const [status, setStatus] = useState<ServiceStatus>("RECEIVED");
   const [completedAt, setCompletedAt] = useState("");
   const [ilgiliKisi, setIlgiliKisi] = useState("");
   const [deviceBrand, setDeviceBrand] = useState("");
@@ -219,7 +203,6 @@ export function ServiceReportPDFForm({ personnel }: Props) {
   const [ops, setOps] = useState<string[]>(Array(9).fill(""));
   const [internalNotes, setInternalNotes] = useState("");
   const [parts, setParts] = useState<PartRow[]>(EMPTY_PARTS);
-  const [paymentMethod, setPaymentMethod] = useState("");
   const [technicianId, setTechnicianId] = useState("");
 
   // Signatures
@@ -277,14 +260,12 @@ export function ServiceReportPDFForm({ personnel }: Props) {
     const notes = [
       internalNotes,
       ilgiliKisi ? `İlgili Kişi: ${ilgiliKisi}` : "",
-      paymentMethod ? `Ödeme Şekli: ${paymentMethod}` : "",
     ].filter(Boolean).join("\n");
 
     const payload = {
       customerId: customer.id,
       serviceType,
       isWarranty,
-      status,
       complaint,
       diagnosis: diagnosisText || undefined,
       operations: operationsText || undefined,
@@ -631,22 +612,8 @@ export function ServiceReportPDFForm({ personnel }: Props) {
           />
         </div>
 
-        {/* ── DURUM / BAKIM / MÜDAHALE ── */}
+        {/* ── BAKIM / MÜDAHALE ── */}
         <div className="flex border-b border-gray-300">
-          {/* Ürünün Durumu */}
-          <div className="flex-[1.5] border-r border-gray-300">
-            <SectionHeader>Ürünün Durumu</SectionHeader>
-            <div className="p-2 space-y-1">
-              {STATUS_OPTIONS.map((s) => (
-                <label key={s.key} className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="status" checked={status === s.key}
-                    onChange={() => setStatus(s.key)} className="w-3 h-3 accent-blue-800" />
-                  <span className="text-[11px]">{s.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* Bakım Şekli */}
           <div className="flex-1 border-r border-gray-300">
             <SectionHeader>Bakım Şekli</SectionHeader>
@@ -714,18 +681,6 @@ export function ServiceReportPDFForm({ personnel }: Props) {
                   className={inp} placeholder="₺ 0.00" />
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* ── ÖDEME ŞEKLİ ── */}
-        <div className="border-b border-gray-300 p-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span className="font-bold text-[#1e3a8a] text-[10px]">Ödeme Şekli: (KDV Hariç)</span>
-          {["Nakit", "Havale", "Cari", "Fatura", "Çek"].map((pm) => (
-            <label key={pm} className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" name="paymentMethod" checked={paymentMethod === pm}
-                onChange={() => setPaymentMethod(pm)} className="w-3 h-3 accent-blue-800" />
-              <span className="text-[11px]">{pm}</span>
-            </label>
           ))}
         </div>
 

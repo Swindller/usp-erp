@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { ServiceStatus, ServiceType, CustomerType, ServiceLogType } from "@prisma/client";
 import {
   ChevronLeft, Edit3, Save, X,
   User, Building2, Phone, Wrench,
   Calendar, Clock, Shield, FileText, Download, Receipt, Plus, Trash2, AlertTriangle,
+  CheckCircle2, Circle, Mail, Package, Camera,
 } from "lucide-react";
 import { ServiceStatusBadge, STATUS_CONFIG } from "./ServiceStatusBadge";
 import { ServiceLogPanel } from "./ServiceLogPanel";
@@ -40,6 +41,24 @@ interface LogEntry {
   } | null;
 }
 
+interface PartsRequest {
+  id: string;
+  status: "PENDING" | "APPROVED" | "DELIVERED" | "REJECTED";
+  parts: { name: string; code?: string; qty: number; unitPrice?: number }[];
+  notes: string | null;
+  createdAt: string;
+  approvedAt: string | null;
+  deliveredAt: string | null;
+  requestedBy: { user: { firstName: string | null; lastName: string | null } };
+  approvedBy: { user: { firstName: string | null; lastName: string | null } } | null;
+}
+
+interface PhotoEntry {
+  url: string;
+  name: string;
+  addedAt: string;
+}
+
 interface Report {
   id: string;
   reportNumber: string;
@@ -70,6 +89,7 @@ interface Report {
   isWarranty: boolean;
   warrantyUntil: string | null;
   estimatedDate: string | null;
+  estimatedCompletionDate: string | null;
   completedAt: string | null;
   deliveredAt: string | null;
   laborCost: string | null;
@@ -82,8 +102,10 @@ interface Report {
   technicianSignature: string | null;
   receivedAt: string;
   createdAt: string;
+  photos: PhotoEntry[] | null;
   logs: LogEntry[];
   invoices: { id: string; invoiceNumber: string; status: string; total: string }[];
+  partsRequests?: PartsRequest[];
 }
 
 interface Personnel {
@@ -98,20 +120,27 @@ interface Props {
   canEdit: boolean;
   canDelete?: boolean;
   canCreateInvoice?: boolean;
+  userRole?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
 
+// Status stepper steps (linear flow)
+const STEPPER_STEPS: ServiceStatus[] = [
+  "RECEIVED", "DIAGNOSING", "DIAGNOSED", "WAITING_PARTS", "IN_REPAIR", "QUALITY_CHECK", "READY",
+];
+
 const STATUS_FLOW: Record<ServiceStatus, ServiceStatus[]> = {
-  RECEIVED:       ["DIAGNOSING", "WAITING_PARTS", "CANCELLED"],
-  DIAGNOSING:     ["WAITING_PARTS", "IN_REPAIR", "CANCELLED"],
-  WAITING_PARTS:  ["IN_REPAIR", "CANCELLED"],
-  IN_REPAIR:      ["QUALITY_CHECK", "READY", "CANCELLED"],
-  QUALITY_CHECK:  ["READY", "IN_REPAIR"],
-  READY:          ["DELIVERED", "WARRANTY_RETURN"],
-  DELIVERED:      [],
-  CANCELLED:      ["RECEIVED"],
-  WARRANTY_RETURN:["RECEIVED"],
+  RECEIVED:        ["DIAGNOSING"],
+  DIAGNOSING:      ["DIAGNOSED", "WAITING_PARTS"],
+  DIAGNOSED:       ["WAITING_PARTS", "IN_REPAIR"],
+  WAITING_PARTS:   ["IN_REPAIR"],
+  IN_REPAIR:       ["QUALITY_CHECK"],
+  QUALITY_CHECK:   ["READY", "IN_REPAIR"],
+  READY:           ["DELIVERED", "WARRANTY_RETURN"],
+  DELIVERED:       [],
+  CANCELLED:       ["RECEIVED"],
+  WARRANTY_RETURN: ["RECEIVED"],
 };
 
 const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
@@ -119,6 +148,13 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   FIELD: "Saha",
   WARRANTY: "Garanti",
   PERIODIC: "Periyodik",
+};
+
+const PARTS_REQUEST_STATUS_LABELS: Record<PartsRequest["status"], { label: string; classes: string }> = {
+  PENDING:   { label: "Onay Bekliyor",  classes: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  APPROVED:  { label: "Onaylandı",      classes: "bg-blue-100 text-blue-800 border-blue-200" },
+  DELIVERED: { label: "Teslim Edildi",  classes: "bg-green-100 text-green-800 border-green-200" },
+  REJECTED:  { label: "Reddedildi",     classes: "bg-red-100 text-red-700 border-red-200" },
 };
 
 function customerName(c: Customer) {
@@ -140,14 +176,33 @@ function fmt(date: string | null | undefined) {
   });
 }
 
-function fmtCurrency(val: string | null) {
-  if (!val) return "—";
-  return `₺${parseFloat(val).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`;
+function fmtDateTime(date: string | null | undefined) {
+  if (!date) return "—";
+  return new Date(date).toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Convert date to input[type=date] value (YYYY-MM-DD)
+function toDateInputValue(date: string | null | undefined) {
+  if (!date) return "";
+  return new Date(date).toISOString().slice(0, 10);
 }
 
 // ── Component ─────────────────────────────────────────────────
 
-export function ServiceReportDetail({ report: initialReport, personnel, canEdit, canDelete = false, canCreateInvoice = false }: Props) {
+export function ServiceReportDetail({
+  report: initialReport,
+  personnel,
+  canEdit,
+  canDelete = false,
+  canCreateInvoice = false,
+  userRole = "",
+}: Props) {
   const [report, setReport] = useState<Report>(initialReport);
   const [tab, setTab] = useState<"details" | "logs" | "signatures">("details");
   const [saving, setSaving] = useState(false);
@@ -159,7 +214,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
   const [editOperations, setEditOperations] = useState(false);
   const [operationsVal, setOperationsVal] = useState(report.operations || "");
 
-  // Parts
+  // Parts (kullanılan parçalar)
   const [editParts, setEditParts] = useState(false);
   const [parts, setParts] = useState<PartItem[]>(report.partsUsed || []);
 
@@ -170,7 +225,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
     (report.additionalTechnicians ?? []).map((t) => t.id)
   );
 
-
   // Signatures
   const [customerSig, setCustomerSig] = useState<string | null>(report.customerSignature);
   const [techSig, setTechSig] = useState<string | null>(report.technicianSignature);
@@ -180,6 +234,45 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Email
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState("");
+
+  // Estimated dates panel
+  const [estCompletionDate, setEstCompletionDate] = useState(
+    toDateInputValue(report.estimatedCompletionDate)
+  );
+  const [estDeliveryDate, setEstDeliveryDate] = useState(
+    toDateInputValue(report.estimatedDate)
+  );
+  const [savingDates, setSavingDates] = useState(false);
+
+  // Parts requests
+  const [partsRequests, setPartsRequests] = useState<PartsRequest[]>(report.partsRequests || []);
+  const [loadingPartsReqs, setLoadingPartsReqs] = useState(false);
+  const [showPartsReqModal, setShowPartsReqModal] = useState(false);
+  const [newReqParts, setNewReqParts] = useState<{ name: string; code: string; qty: number; unitPrice: number }[]>([
+    { name: "", code: "", qty: 1, unitPrice: 0 },
+  ]);
+  const [newReqNotes, setNewReqNotes] = useState("");
+  const [submittingReq, setSubmittingReq] = useState(false);
+  const [reqError, setReqError] = useState("");
+
+  // Photos
+  const [photos, setPhotos] = useState<PhotoEntry[]>((report.photos as PhotoEntry[]) || []);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Invoice creation modal
+  const [showInvModal, setShowInvModal] = useState(false);
+  const [invDueDate, setInvDueDate] = useState("");
+  const [invNotes, setInvNotes] = useState("");
+  const [invLines, setInvLines] = useState<{ description: string; qty: number; unitPrice: number; vatRate: number }[]>([]);
+  const [invSaving, setInvSaving] = useState(false);
+  const [invError, setInvError] = useState("");
+
+  const canApprove = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(userRole);
+
   const deleteReport = async () => {
     setDeleting(true);
     try {
@@ -188,16 +281,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
     } finally { setDeleting(false); }
   };
 
-  // Invoice creation modal
-  const [showInvModal, setShowInvModal] = useState(false);
-  const [invDueDate, setInvDueDate] = useState("");
-  const [invNotes, setInvNotes]   = useState("");
-  const [invLines, setInvLines]   = useState<{ description: string; qty: number; unitPrice: number; vatRate: number }[]>([]);
-  const [invSaving, setInvSaving] = useState(false);
-  const [invError, setInvError]   = useState("");
-
   const openInvModal = () => {
-    // Pre-populate from report
     const lines: { description: string; qty: number; unitPrice: number; vatRate: number }[] = [];
     if (report.serviceCost && parseFloat(report.serviceCost) > 0) {
       lines.push({ description: "Servis Ücreti", qty: 1, unitPrice: parseFloat(report.serviceCost), vatRate: 20 });
@@ -226,10 +310,8 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
     setInvSaving(true);
     setInvError("");
     try {
-      // Boş fiyatlı satırları filtrele
       const filteredLines = invLines.filter((l) => l.description.trim() && l.unitPrice > 0);
       if (filteredLines.length === 0) { setInvError("En az bir kalem girilmelidir."); setInvSaving(false); return; }
-      // Genel KDV: satırların ağırlıklı ortalaması (API için basit değer)
       const avgVat = Math.round(filteredLines.reduce((s, l) => s + l.vatRate, 0) / filteredLines.length);
       const res = await fetch("/api/muhasebe/faturalar", {
         method: "POST",
@@ -269,7 +351,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
       });
       if (!res.ok) throw new Error("Güncellenemedi");
       const { report: updated } = await res.json();
-      setReport({ ...report, ...updated });
+      setReport((r) => ({ ...r, ...updated }));
       return true;
     } catch {
       setSaveError("Güncelleme başarısız");
@@ -302,14 +384,145 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
     setSavingSig(false);
   };
 
+  const saveDates = async (andEmail = false) => {
+    setSavingDates(true);
+    const ok = await patch({
+      estimatedCompletionDate: estCompletionDate || null,
+      estimatedDate: estDeliveryDate || null,
+    });
+    setSavingDates(false);
+    if (ok && andEmail) {
+      await sendEmail();
+    }
+  };
+
+  const sendEmail = async () => {
+    setSendingEmail(true);
+    setEmailMsg("");
+    try {
+      const res = await fetch(`/api/servis/${report.id}/email`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailMsg(typeof data.error === "string" ? data.error : "E-posta gönderilemedi");
+      } else {
+        setEmailMsg("E-posta başarıyla gönderildi");
+        setTimeout(() => setEmailMsg(""), 4000);
+      }
+    } catch {
+      setEmailMsg("Bağlantı hatası");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  // Parts requests
+  const loadPartsRequests = async () => {
+    setLoadingPartsReqs(true);
+    try {
+      const res = await fetch(`/api/servis/${report.id}/parca-talebi`);
+      const data = await res.json();
+      if (res.ok) setPartsRequests(data.requests || []);
+    } finally {
+      setLoadingPartsReqs(false);
+    }
+  };
+
+  const submitPartsRequest = async () => {
+    const validParts = newReqParts.filter((p) => p.name.trim());
+    if (validParts.length === 0) { setReqError("En az bir parça girilmelidir"); return; }
+    setSubmittingReq(true);
+    setReqError("");
+    try {
+      const res = await fetch(`/api/servis/${report.id}/parca-talebi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parts: validParts, notes: newReqNotes || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setReqError(typeof data.error === "string" ? data.error : "Hata oluştu"); return; }
+      setPartsRequests((prev) => [data.request, ...prev]);
+      setShowPartsReqModal(false);
+      setNewReqParts([{ name: "", code: "", qty: 1, unitPrice: 0 }]);
+      setNewReqNotes("");
+      // Status changed to WAITING_PARTS in API
+      setReport((r) => ({ ...r, status: "WAITING_PARTS" as ServiceStatus }));
+    } catch {
+      setReqError("Bağlantı hatası");
+    } finally {
+      setSubmittingReq(false);
+    }
+  };
+
+  const handlePartsRequestAction = async (reqId: string, action: "approve" | "reject" | "deliver") => {
+    try {
+      const res = await fetch(`/api/servis/${report.id}/parca-talebi/${reqId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      setPartsRequests((prev) => prev.map((r) => r.id === reqId ? data.request : r));
+      if (action === "deliver") {
+        // Reload report parts
+        const rRes = await fetch(`/api/servis/${report.id}`);
+        const rData = await rRes.json();
+        if (rRes.ok) setReport((r) => ({ ...r, ...rData.report }));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Photos
+  const handlePhotoUpload = async (files: FileList) => {
+    if (!files.length) return;
+    setUploadingPhoto(true);
+    try {
+      const photosToUpload: { url: string; name: string }[] = [];
+      for (const file of Array.from(files)) {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        photosToUpload.push({ url: dataUrl, name: file.name });
+      }
+      const res = await fetch(`/api/servis/${report.id}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photos: photosToUpload }),
+      });
+      const data = await res.json();
+      if (res.ok) setPhotos(data.photos as PhotoEntry[]);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const deletePhoto = async (index: number) => {
+    try {
+      const res = await fetch(`/api/servis/${report.id}/photos`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index }),
+      });
+      if (res.ok) setPhotos((prev) => prev.filter((_, i) => i !== index));
+    } catch {
+      // ignore
+    }
+  };
+
   const nextStatuses = STATUS_FLOW[report.status] || [];
+  const stepperCurrentIdx = STEPPER_STEPS.indexOf(report.status);
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Link
-          href={`/servis`}
+          href="/servis"
           className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors flex-shrink-0"
         >
           <ChevronLeft size={18} className="text-gray-600" />
@@ -320,7 +533,7 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               <span className="font-mono text-xs text-gray-400">{report.reportNumber}</span>
               <h1 className="text-xl font-bold text-gray-900">{customerName(report.customer)}</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <ServiceStatusBadge status={report.status} size="lg" />
               <a
                 href={`/api/servis/${report.id}/pdf`}
@@ -329,6 +542,17 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               >
                 <Download size={13} />PDF İndir
               </a>
+              {/* Email butonu */}
+              {report.customer.email && (
+                <button
+                  type="button"
+                  onClick={sendEmail}
+                  disabled={sendingEmail}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors text-xs font-medium text-blue-700 disabled:opacity-50"
+                >
+                  <Mail size={13} />{sendingEmail ? "Gönderiliyor..." : "Müşteriye Bildir"}
+                </button>
+              )}
               {canCreateInvoice && (
                 <button
                   type="button"
@@ -349,6 +573,11 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               )}
             </div>
           </div>
+          {emailMsg && (
+            <p className={`text-xs mt-1.5 ${emailMsg.includes("başarı") ? "text-green-600" : "text-red-500"}`}>
+              {emailMsg}
+            </p>
+          )}
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-500">
             <span className="flex items-center gap-1"><Calendar size={11} /> Alınma: {fmt(report.receivedAt)}</span>
             <span className="flex items-center gap-1"><Wrench size={11} /> {SERVICE_TYPE_LABELS[report.serviceType]}</span>
@@ -359,28 +588,91 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
         </div>
       </div>
 
-      {/* Status action bar */}
+      {/* Status Stepper */}
+      {(STEPPER_STEPS.includes(report.status) || stepperCurrentIdx >= 0) && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4">
+          <p className="text-xs font-medium text-gray-500 mb-3">İşlem Adımları</p>
+          <div className="flex items-center gap-0">
+            {STEPPER_STEPS.map((step, idx) => {
+              const isDone = stepperCurrentIdx > idx;
+              const isCurrent = stepperCurrentIdx === idx;
+              const isFuture = stepperCurrentIdx < idx;
+              const isClickable = canEdit && nextStatuses.includes(step);
+
+              return (
+                <div key={step} className="flex items-center flex-1 min-w-0">
+                  <button
+                    type="button"
+                    disabled={!isClickable || saving}
+                    onClick={() => isClickable && changeStatus(step)}
+                    className={`flex flex-col items-center gap-1 flex-1 transition-opacity ${
+                      isClickable ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                    } disabled:opacity-100`}
+                    title={STATUS_CONFIG[step].label}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        isDone
+                          ? "bg-green-500 border-green-500"
+                          : isCurrent
+                          ? "bg-blue-600 border-blue-600"
+                          : "bg-white border-gray-300"
+                      } ${isClickable ? "ring-2 ring-blue-300 ring-offset-1" : ""}`}
+                    >
+                      {isDone ? (
+                        <CheckCircle2 size={14} className="text-white" />
+                      ) : isCurrent ? (
+                        <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                      ) : (
+                        <Circle size={14} className="text-gray-300" />
+                      )}
+                    </div>
+                    <span
+                      className={`text-[9px] text-center leading-tight max-w-[52px] ${
+                        isDone ? "text-green-600" : isCurrent ? "text-blue-700 font-semibold" : isFuture ? "text-gray-400" : "text-gray-600"
+                      }`}
+                    >
+                      {STATUS_CONFIG[step].label}
+                    </span>
+                  </button>
+                  {idx < STEPPER_STEPS.length - 1 && (
+                    <div
+                      className={`h-0.5 flex-1 mx-0.5 transition-colors ${
+                        stepperCurrentIdx > idx ? "bg-green-400" : "bg-gray-200"
+                      }`}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Status action bar (DELIVERED, CANCELLED, WARRANTY_RETURN) */}
       {canEdit && nextStatuses.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-4">
           <p className="text-xs font-medium text-gray-500 mb-2.5">Durumu Güncelle</p>
           <div className="flex flex-wrap gap-2">
-            {nextStatuses.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => changeStatus(s)}
-                disabled={saving}
-                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors disabled:opacity-50 ${
-                  s === "CANCELLED" || s === "WARRANTY_RETURN"
-                    ? "border-red-200 text-red-600 hover:bg-red-50"
-                    : s === "DELIVERED"
-                    ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
-                    : "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
-                }`}
-              >
-                → {STATUS_CONFIG[s].label}
-              </button>
-            ))}
+            {nextStatuses
+              .filter((s) => !STEPPER_STEPS.includes(s) || !STEPPER_STEPS.includes(report.status))
+              .map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => changeStatus(s)}
+                  disabled={saving}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors disabled:opacity-50 ${
+                    s === "CANCELLED" || s === "WARRANTY_RETURN"
+                      ? "border-red-200 text-red-600 hover:bg-red-50"
+                      : s === "DELIVERED"
+                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                      : "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+                  }`}
+                >
+                  → {STATUS_CONFIG[s].label}
+                </button>
+              ))}
           </div>
           {saveError && <p className="text-xs text-red-500 mt-2">{saveError}</p>}
         </div>
@@ -487,6 +779,58 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
             )}
           </div>
 
+          {/* Tespit & Tarihler paneli */}
+          {canEdit && (
+            <div className="bg-white border border-blue-100 rounded-2xl p-4">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm mb-3">
+                <Calendar size={15} className="text-blue-500" />
+                Tarihler & Müşteri Bildirimi
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Tahmini Tamamlanma</label>
+                  <input
+                    type="date"
+                    value={estCompletionDate}
+                    onChange={(e) => setEstCompletionDate(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Tahmini Teslim</label>
+                  <input
+                    type="date"
+                    value={estDeliveryDate}
+                    onChange={(e) => setEstDeliveryDate(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => saveDates(true)}
+                  disabled={savingDates || sendingEmail}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <Mail size={12} />
+                  {savingDates ? "Kaydediliyor..." : "Kaydet & Müşteriye Bildir"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveDates(false)}
+                  disabled={savingDates}
+                  className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <Save size={12} /> Sadece Kaydet
+                </button>
+              </div>
+              {!report.customer.email && (
+                <p className="text-xs text-amber-600 mt-2">Müşterinin e-posta adresi tanımlı değil — bildirim gönderilemez.</p>
+              )}
+            </div>
+          )}
+
           {/* Operations */}
           <div className="bg-white border border-gray-200 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -559,10 +903,163 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
             />
           </div>
 
+          {/* Parça Talebi paneli */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm">
+                <Package size={15} className="text-gray-500" />
+                Parça Talepleri
+              </h3>
+              <div className="flex items-center gap-2">
+                {partsRequests.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setLoadingPartsReqs(true); loadPartsRequests(); }}
+                    className="text-xs text-blue-600 hover:underline"
+                    disabled={loadingPartsReqs}
+                  >
+                    {loadingPartsReqs ? "Yükleniyor..." : "Yükle"}
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPartsReqModal(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors"
+                  >
+                    <Plus size={12} /> Parça Talebi
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {partsRequests.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Parça talebi yok</p>
+            ) : (
+              <div className="space-y-3">
+                {partsRequests.map((req) => {
+                  const badge = PARTS_REQUEST_STATUS_LABELS[req.status];
+                  const reqByName = [req.requestedBy.user.firstName, req.requestedBy.user.lastName].filter(Boolean).join(" ") || "Teknisyen";
+                  return (
+                    <div key={req.id} className="border border-gray-100 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${badge.classes}`}>{badge.label}</span>
+                        <span className="text-[10px] text-gray-400">{fmtDateTime(req.createdAt)} · {reqByName}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {req.parts.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs text-gray-700">
+                            <span>{p.name}{p.code ? ` (${p.code})` : ""}</span>
+                            <span className="text-gray-500">
+                              {p.qty} adet{p.unitPrice ? ` · ₺${p.unitPrice.toLocaleString("tr-TR")}` : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {req.notes && <p className="text-xs text-gray-500 italic">{req.notes}</p>}
+                      <div className="flex gap-2 pt-1">
+                        {req.status === "PENDING" && canApprove && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handlePartsRequestAction(req.id, "approve")}
+                              className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                              Onayla
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePartsRequestAction(req.id, "reject")}
+                              className="px-2.5 py-1 border border-red-200 text-red-600 text-xs rounded-lg hover:bg-red-50 transition-colors"
+                            >
+                              Reddet
+                            </button>
+                          </>
+                        )}
+                        {req.status === "APPROVED" && canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handlePartsRequestAction(req.id, "deliver")}
+                            className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Teslim Alındı
+                          </button>
+                        )}
+                        {req.status === "DELIVERED" && req.deliveredAt && (
+                          <span className="text-[10px] text-green-600">Teslim: {fmtDateTime(req.deliveredAt)}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Fotoğraflar paneli */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm">
+                <Camera size={15} className="text-gray-500" />
+                Fotoğraflar
+              </h3>
+              {canEdit && (
+                <>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => e.target.files && handlePhotoUpload(e.target.files)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                  >
+                    <Plus size={12} />
+                    {uploadingPhoto ? "Yükleniyor..." : "Fotoğraf Ekle"}
+                  </button>
+                </>
+              )}
+            </div>
+            {photos.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Fotoğraf eklenmemiş</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {photos.map((photo, idx) => (
+                  <div key={idx} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.url}
+                      alt={photo.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => deletePhoto(idx)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] px-1.5 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      {photo.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Technician + Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InfoCard icon={<Clock size={15} />} title="Tarihler & Atama">
               <InfoRow label="Alınma" value={fmt(report.receivedAt)} />
+              <InfoRow label="Tahmini Tamamlanma" value={fmt(report.estimatedCompletionDate)} />
               <InfoRow label="Tahmini Teslim" value={fmt(report.estimatedDate)} />
               <InfoRow label="Tamamlanma" value={fmt(report.completedAt)} />
               <InfoRow label="Teslim" value={fmt(report.deliveredAt)} />
@@ -616,7 +1113,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                 </div>
               )}
             </InfoCard>
-
           </div>
 
           {/* Notes */}
@@ -648,6 +1144,27 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                 );
               })}
             </InfoCard>
+          )}
+
+          {/* Muhasebe bölümü - READY statüsünde belirgin yap */}
+          {canCreateInvoice && report.status === "READY" && report.invoices.length === 0 && (
+            <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-5">
+              <h3 className="font-bold text-green-800 flex items-center gap-2 mb-2">
+                <Receipt size={17} />
+                Fatura Oluştur
+              </h3>
+              <p className="text-sm text-green-700 mb-3">
+                Cihaz teslime hazır. Fatura oluşturarak muhasebe sürecini başlatın.
+              </p>
+              <button
+                type="button"
+                onClick={openInvModal}
+                className="px-5 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <Plus size={15} />
+                Fatura Oluştur
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -690,6 +1207,79 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
               {savingSig ? "Kaydediliyor..." : "İmzaları Kaydet"}
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Parça Talebi Modal ── */}
+      {showPartsReqModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><Package size={16} className="text-orange-500" />Parça Talebi Oluştur</h3>
+              <button onClick={() => setShowPartsReqModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} className="text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {reqError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">{reqError}</div>}
+
+              {/* Parts rows */}
+              <div>
+                <div className="grid grid-cols-[1fr_80px_60px_70px_20px] gap-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-0.5 mb-1.5">
+                  <span>Parça Adı</span><span>Kod</span><span className="text-center">Adet</span><span className="text-right">Birim ₺</span><span />
+                </div>
+                <div className="space-y-1.5">
+                  {newReqParts.map((p, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_80px_60px_70px_20px] gap-1.5 items-center">
+                      <input
+                        value={p.name}
+                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, name: e.target.value } : r))}
+                        placeholder="Parça adı *"
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 min-w-0"
+                      />
+                      <input
+                        value={p.code}
+                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, code: e.target.value } : r))}
+                        placeholder="Kod"
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                      />
+                      <input
+                        type="number" min="1" value={p.qty}
+                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, qty: parseInt(e.target.value) || 1 } : r))}
+                        className="border border-gray-200 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                      />
+                      <input
+                        type="number" min="0" step="0.01" value={p.unitPrice}
+                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, unitPrice: parseFloat(e.target.value) || 0 } : r))}
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                      />
+                      <button type="button" onClick={() => setNewReqParts((prev) => prev.filter((_, j) => j !== i))}
+                        className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button"
+                  onClick={() => setNewReqParts((prev) => [...prev, { name: "", code: "", qty: 1, unitPrice: 0 }])}
+                  className="mt-2 flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 transition-colors">
+                  <Plus size={12} />Satır Ekle
+                </button>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Notlar</label>
+                <textarea value={newReqNotes} onChange={(e) => setNewReqNotes(e.target.value)} rows={2}
+                  placeholder="Açıklama veya ek bilgi..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 resize-none" />
+              </div>
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setShowPartsReqModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">İptal</button>
+              <button onClick={submitPartsRequest} disabled={submittingReq}
+                className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                {submittingReq ? "Gönderiliyor..." : "Talep Oluştur"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -758,7 +1348,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                         onChange={(e) => setInvLines((ls) => ls.map((l, j) => j === i ? { ...l, unitPrice: parseFloat(e.target.value) || 0 } : l))}
                         className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
-                      {/* KDV % — serbest giriş */}
                       <div className="relative">
                         <input
                           type="number" min="0" max="100" step="1" value={line.vatRate}
@@ -780,7 +1369,6 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                 </button>
               </div>
 
-              {/* Vade tarihi */}
               <div>
                 <label className="text-xs font-medium text-gray-600 block mb-1">Vade Tarihi</label>
                 <input type="date" value={invDueDate} onChange={(e) => setInvDueDate(e.target.value)}
@@ -793,16 +1381,16 @@ export function ServiceReportDetail({ report: initialReport, personnel, canEdit,
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none" />
               </div>
 
-              {/* Özet — per-line KDV hesaplı */}
+              {/* Özet */}
               {(() => {
                 const rows = invLines.filter((l) => l.unitPrice > 0);
-                const sub  = rows.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-                const vat  = rows.reduce((s, l) => s + l.qty * l.unitPrice * (l.vatRate / 100), 0);
+                const sub = rows.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+                const vat = rows.reduce((s, l) => s + l.qty * l.unitPrice * (l.vatRate / 100), 0);
                 return (
                   <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm space-y-1">
                     {rows.map((l, i) => l.vatRate > 0 && (
                       <div key={i} className="flex justify-between text-gray-500 text-xs">
-                        <span>{l.description || `Kalem ${i+1}`} KDV (%{l.vatRate})</span>
+                        <span>{l.description || `Kalem ${i + 1}`} KDV (%{l.vatRate})</span>
                         <span>₺{(l.qty * l.unitPrice * l.vatRate / 100).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span>
                       </div>
                     ))}
@@ -867,3 +1455,4 @@ function InfoRow({
     </div>
   );
 }
+
