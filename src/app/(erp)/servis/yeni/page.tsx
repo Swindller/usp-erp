@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { getAppSession, hasPagePermission } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { ServiceReportForm } from "@/components/servis/ServiceReportForm";
+import { ServiceReportPDFForm } from "@/components/servis/ServiceReportPDFForm";
 
 
 export default async function YeniServisPage() {
@@ -18,5 +18,5 @@ export default async function YeniServisPage() {
     orderBy: { createdAt: "asc" },
   });
 
-  return <ServiceReportForm personnel={personnel} />;
+  return <ServiceReportPDFForm personnel={personnel} />;
 }

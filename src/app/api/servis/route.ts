@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { ServiceStatus, ServiceType, Prisma } from "@prisma/client";
@@ -8,14 +7,14 @@ import { ServiceStatus, ServiceType, Prisma } from "@prisma/client";
 const ALLOWED_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 async function checkAuth() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return null;
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
+  const user = await getAuthUser();
+  if (!user || !ALLOWED_ROLES.includes(user.role)) return null;
+  // Fetch personnel relation
+  const full = await prisma.user.findUnique({
+    where: { email: user.email },
     include: { personnel: true },
   });
-  if (!user || !ALLOWED_ROLES.includes(user.role)) return null;
-  return user;
+  return full;
 }
 
 export async function GET(req: NextRequest) {
@@ -62,6 +61,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ reports, total, page, limit, pages: Math.ceil(total / limit) });
 }
 
+const partSchema = z.object({
+  productId: z.string(),
+  name: z.string(),
+  qty: z.number(),
+  unitPrice: z.number().nullable(),
+});
+
 const createSchema = z.object({
   customerId: z.string().min(1),
   deviceBrand: z.string().optional(),
@@ -73,7 +79,11 @@ const createSchema = z.object({
   devicePhase: z.string().optional(),
   productId: z.string().optional(),
   serviceType: z.nativeEnum(ServiceType),
+  status: z.nativeEnum(ServiceStatus).optional(),
   complaint: z.string().min(1),
+  diagnosis: z.string().optional(),
+  operations: z.string().optional(),
+  partsUsed: z.array(partSchema).optional(),
   technicianId: z.string().optional(),
   estimatedDate: z.string().optional(),
   isWarranty: z.boolean().default(false),
@@ -111,8 +121,11 @@ export async function POST(req: NextRequest) {
       devicePhase: data.devicePhase,
       productId: data.productId || undefined,
       serviceType: data.serviceType,
-      status: ServiceStatus.RECEIVED,
+      status: data.status ?? ServiceStatus.RECEIVED,
       complaint: data.complaint,
+      diagnosis: data.diagnosis,
+      operations: data.operations,
+      partsUsed: data.partsUsed ? data.partsUsed : undefined,
       technicianId: data.technicianId || undefined,
       estimatedDate: data.estimatedDate ? new Date(data.estimatedDate) : undefined,
       isWarranty: data.isWarranty,
