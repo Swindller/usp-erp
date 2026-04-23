@@ -29,7 +29,7 @@
     "zod": "^4.3.6"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node_modules/.bin/tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
