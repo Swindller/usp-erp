@@ -9,13 +9,13 @@ async function main() {
   // Admin kullanıcı
   const adminPassword = await hash("admin123", 12);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@ugurpompa.com" },
-    update: { role: "SUPER_ADMIN" },
+    where: { email: "berkayocal@ugursupompalari.com.tr" },
+    update: { role: "SUPER_ADMIN", passwordHash: adminPassword },
     create: {
-      email: "admin@ugurpompa.com",
+      email: "berkayocal@ugursupompalari.com.tr",
       passwordHash: adminPassword,
-      firstName: "Admin",
-      lastName: "USP",
+      firstName: "Berkay",
+      lastName: "Öcal",
       role: "SUPER_ADMIN",
     },
   });

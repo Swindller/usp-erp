@@ -34,4 +34,4 @@ COPY --from=builder /app/node_modules ./node_modules
 USER nextjs
 EXPOSE 3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["sh", "-c", "./node_modules/.bin/prisma db push --accept-data-loss --skip-generate && node server.js"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma db push --accept-data-loss --skip-generate && ./node_modules/.bin/prisma db seed && node server.js"]
