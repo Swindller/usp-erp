@@ -102,6 +102,7 @@ interface ReportPDFProps {
     deviceModel: string | null;
     deviceSerial: string | null;
     deviceYear: number | null;
+    deviceMonth: number | null;
     devicePower: string | null;
     customerSignature: string | null;
     technicianSignature: string | null;
@@ -282,8 +283,14 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
               <Text style={s.value}>{report.deviceSerial || "—"}</Text>
             </View>
             <View style={[s.cell, { flex: 1 }]}>
-              <Text style={s.label}>Üretim Tarihi / Yılı</Text>
-              <Text style={s.value}>{report.deviceYear ? String(report.deviceYear) : "—"}</Text>
+              <Text style={s.label}>Üretim Tarihi</Text>
+              <Text style={s.value}>{
+                report.deviceYear
+                  ? report.deviceMonth
+                    ? `${["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"][report.deviceMonth - 1]} ${report.deviceYear}`
+                    : String(report.deviceYear)
+                  : "—"
+              }</Text>
             </View>
             <View style={[s.cellLast, { flex: 1 }]}>
               <Text style={s.label}>Güç / Gerilim</Text>

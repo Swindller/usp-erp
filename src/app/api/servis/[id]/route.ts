@@ -80,6 +80,8 @@ const updateSchema = z.object({
   techSignerRole: z.string().nullable().optional(),
   custSignerName: z.string().nullable().optional(),
   custSignerRole: z.string().nullable().optional(),
+  deviceYear: z.coerce.number().nullable().optional(),
+  deviceMonth: z.coerce.number().min(1).max(12).nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -133,6 +135,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (data.techSignerRole !== undefined) updateData.techSignerRole = data.techSignerRole;
   if (data.custSignerName !== undefined) updateData.custSignerName = data.custSignerName;
   if (data.custSignerRole !== undefined) updateData.custSignerRole = data.custSignerRole;
+  if (data.deviceYear !== undefined) updateData.deviceYear = data.deviceYear;
+  if (data.deviceMonth !== undefined) updateData.deviceMonth = data.deviceMonth;
 
   const isTransitionToReady = data.status === ServiceStatus.READY && existing.status !== ServiceStatus.READY;
 

@@ -29,6 +29,13 @@ export default async function ServisDetailPage({ params }: Props) {
           orderBy: { createdAt: "desc" },
         },
         invoices: { select: { id: true, invoiceNumber: true, status: true, total: true } },
+        partsRequests: {
+          include: {
+            requestedBy: { include: { user: { select: { firstName: true, lastName: true } } } },
+            approvedBy: { include: { user: { select: { firstName: true, lastName: true } } } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     }),
     prisma.personnel.findMany({
@@ -50,5 +57,5 @@ export default async function ServisDetailPage({ params }: Props) {
 
   const canEdit   = ["ADMIN", "SUPER_ADMIN", "MANAGER"].includes(role ?? "");
   const canDelete = role === "SUPER_ADMIN";
-  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} canDelete={canDelete} canCreateInvoice={canCreateInvoice} />;
+  return <ServiceReportDetail report={report as unknown as Parameters<typeof ServiceReportDetail>[0]["report"]} personnel={personnel} canEdit={canEdit} canDelete={canDelete} canCreateInvoice={canCreateInvoice} userRole={role ?? ""} />;
 }

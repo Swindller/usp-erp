@@ -196,6 +196,7 @@ export function ServiceReportPDFForm({ personnel }: Props) {
   const [deviceModel, setDeviceModel] = useState("");
   const [deviceSerial, setDeviceSerial] = useState("");
   const [deviceYear, setDeviceYear] = useState("");
+  const [deviceMonth, setDeviceMonth] = useState("");
   const [devicePower, setDevicePower] = useState("");
   const [complaint, setComplaint] = useState("");
   const [diagnoses, setDiagnoses] = useState<string[]>(Array(9).fill(""));
@@ -285,6 +286,7 @@ export function ServiceReportPDFForm({ personnel }: Props) {
       deviceModel: deviceModel || undefined,
       deviceSerial: deviceSerial || undefined,
       deviceYear: deviceYear ? parseInt(deviceYear) : undefined,
+      deviceMonth: deviceMonth ? parseInt(deviceMonth) : undefined,
       devicePower: devicePower || undefined,
       technicianId: technicianId || undefined,
       estimatedDate: completedAt || undefined,
@@ -550,12 +552,20 @@ export function ServiceReportPDFForm({ personnel }: Props) {
               placeholder="Seri numarası" className={inp} />
           </LabelVal>
           <LabelVal label="Üretim Tarihi:" className="flex-1 border-r border-gray-300">
-            <select value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)} className={inp}>
-              <option value="">Seçin</option>
-              {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                <option key={y} value={String(y)}>{y}</option>
-              ))}
-            </select>
+            <div className="flex gap-1">
+              <select value={deviceMonth} onChange={(e) => setDeviceMonth(e.target.value)} className={`${inp} w-20`}>
+                <option value="">Ay</option>
+                {["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"].map((m, i) => (
+                  <option key={i+1} value={String(i+1)}>{m}</option>
+                ))}
+              </select>
+              <select value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)} className={`${inp} flex-1`}>
+                <option value="">Yıl</option>
+                {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                  <option key={y} value={String(y)}>{y}</option>
+                ))}
+              </select>
+            </div>
           </LabelVal>
           <LabelVal label="Üretim Yeri:" className="flex-1">
             <input value={devicePower} onChange={(e) => setDevicePower(e.target.value)}

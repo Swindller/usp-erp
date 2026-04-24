@@ -686,6 +686,7 @@ model ServiceReport {
   deviceModel   String?
   deviceSerial  String?
   deviceYear    Int?
+  deviceMonth   Int?    // 1-12
   devicePower   String?
   deviceVoltage String?
   devicePhase   String?
