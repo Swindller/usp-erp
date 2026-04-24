@@ -7,7 +7,7 @@ import {
   ChevronLeft, Edit3, Save, X,
   User, Building2, Phone, Wrench,
   Calendar, Clock, Shield, FileText, Download, Receipt, Plus, Trash2, AlertTriangle,
-  CheckCircle2, Circle, Mail, Package, Camera,
+  CheckCircle2, Circle, Mail, Package, Camera, Search, Loader2,
 } from "lucide-react";
 import { ServiceStatusBadge, STATUS_CONFIG } from "./ServiceStatusBadge";
 import { ServiceLogPanel } from "./ServiceLogPanel";
@@ -251,9 +251,13 @@ export function ServiceReportDetail({
   const [partsRequests, setPartsRequests] = useState<PartsRequest[]>(report.partsRequests || []);
   const [loadingPartsReqs, setLoadingPartsReqs] = useState(false);
   const [showPartsReqModal, setShowPartsReqModal] = useState(false);
-  const [newReqParts, setNewReqParts] = useState<{ name: string; qty: string }[]>([
+  const [newReqParts, setNewReqParts] = useState<{ name: string; qty: string; productId?: string; unitPrice?: number }[]>([
     { name: "", qty: "1" },
   ]);
+  // Stok arama için
+  const [reqSearchQuery, setReqSearchQuery] = useState<Record<number, string>>({});
+  const [reqSearchResults, setReqSearchResults] = useState<Record<number, {id:string;name:string;sku:string;stock:number;price:number;brand:string|null}[]>>({});
+  const [reqSearching, setReqSearching] = useState<Record<number, boolean>>({});
   const [newReqNotes, setNewReqNotes] = useState("");
   const [submittingReq, setSubmittingReq] = useState(false);
   const [reqError, setReqError] = useState("");
@@ -437,7 +441,7 @@ export function ServiceReportDetail({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-        parts: validParts.map((r) => ({ name: r.name.trim(), qty: parseInt(r.qty) || 1 })),
+        parts: validParts.map((r) => ({ name: r.name.trim(), qty: parseInt(r.qty) || 1, productId: r.productId, unitPrice: r.unitPrice })),
         notes: newReqNotes || undefined,
       }),
       });
@@ -447,6 +451,9 @@ export function ServiceReportDetail({
       setShowPartsReqModal(false);
       setNewReqParts([{ name: "", qty: "1" }]);
       setNewReqNotes("");
+      setReqSearchQuery({});
+      setReqSearchResults({});
+      setReqSearching({});
       // Status changed to WAITING_PARTS in API
       setReport((r) => ({ ...r, status: "WAITING_PARTS" as ServiceStatus }));
     } catch {
@@ -903,6 +910,7 @@ export function ServiceReportDetail({
               parts={parts}
               onChange={setParts}
               disabled={!editParts}
+              hidePrices={userRole === "TECHNICIAN"}
             />
           </div>
 
@@ -954,7 +962,7 @@ export function ServiceReportDetail({
                           <div key={i} className="flex items-center justify-between text-xs text-gray-700">
                             <span>{p.name}{p.code ? ` (${p.code})` : ""}</span>
                             <span className="text-gray-500">
-                              {p.qty} adet{p.unitPrice ? ` · ₺${p.unitPrice.toLocaleString("tr-TR")}` : ""}
+                              {p.qty} adet{(!canApprove ? false : p.unitPrice) ? ` · ₺${p.unitPrice!.toLocaleString("tr-TR")}` : ""}
                             </span>
                           </div>
                         ))}
@@ -1227,26 +1235,86 @@ export function ServiceReportDetail({
               {/* Parts rows */}
               <div>
                 <div className="flex gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-0.5 mb-1.5">
-                  <span className="flex-1">Parça Adı</span><span className="w-16 text-center">Adet</span><span className="w-5" />
+                  <span className="flex-1">Parça Adı (stoktan ara veya yaz)</span><span className="w-14 text-center">Adet</span><span className="w-5" />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {newReqParts.map((p, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <input
-                        value={p.name}
-                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, name: e.target.value } : r))}
-                        placeholder="Parça adı *"
-                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 min-w-0"
-                      />
-                      <input
-                        type="number" min="1" value={p.qty}
-                        onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, qty: e.target.value } : r))}
-                        className="w-16 border border-gray-200 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
-                      />
-                      <button type="button" onClick={() => setNewReqParts((prev) => prev.filter((_, j) => j !== i))}
-                        className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
-                        <Trash2 size={13} />
-                      </button>
+                    <div key={i} className="space-y-1">
+                      <div className="flex gap-2 items-center">
+                        {/* Parça adı — stok arama */}
+                        <div className="flex-1 relative">
+                          <div className="relative">
+                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                              value={p.productId ? p.name : (reqSearchQuery[i] ?? p.name)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                // Eğer bir ürün seçildiyse ve değiştirilirsek seçimi temizle
+                                setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, name: val, productId: undefined, unitPrice: undefined } : r));
+                                setReqSearchQuery((q) => ({ ...q, [i]: val }));
+                                if (val.length >= 2) {
+                                  setReqSearching((s) => ({ ...s, [i]: true }));
+                                  setTimeout(async () => {
+                                    try {
+                                      const res = await fetch(`/api/urunler/arama?q=${encodeURIComponent(val)}`);
+                                      const data = await res.json();
+                                      setReqSearchResults((r) => ({ ...r, [i]: data.products || [] }));
+                                    } finally {
+                                      setReqSearching((s) => ({ ...s, [i]: false }));
+                                    }
+                                  }, 300);
+                                } else {
+                                  setReqSearchResults((r) => ({ ...r, [i]: [] }));
+                                }
+                              }}
+                              placeholder="Parça adı veya SKU *"
+                              className="w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                            />
+                            {reqSearching[i] && <Loader2 size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />}
+                            {p.productId && <Package size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-400" />}
+                          </div>
+                          {/* Arama sonuçları dropdown */}
+                          {!p.productId && (reqSearchResults[i] || []).length > 0 && (
+                            <div className="absolute z-50 top-full mt-0.5 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-40 overflow-y-auto">
+                              {(reqSearchResults[i] || []).map((prod) => (
+                                <button
+                                  key={prod.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setNewReqParts((prev) => prev.map((r, j) => j === i
+                                      ? { ...r, name: prod.name, productId: prod.id, unitPrice: prod.price }
+                                      : r
+                                    ));
+                                    setReqSearchQuery((q) => ({ ...q, [i]: "" }));
+                                    setReqSearchResults((r) => ({ ...r, [i]: [] }));
+                                  }}
+                                  className="w-full flex items-center justify-between px-3 py-2 hover:bg-orange-50 text-left text-sm transition-colors"
+                                >
+                                  <div>
+                                    <span className="font-medium text-gray-800">{prod.name}</span>
+                                    <span className="text-xs text-gray-400 ml-2">{prod.sku}{prod.brand ? ` · ${prod.brand}` : ""}</span>
+                                  </div>
+                                  <span className="text-xs text-gray-500 ml-2 flex-shrink-0">Stok: {prod.stock}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="number" min="1" value={p.qty}
+                          onChange={(e) => setNewReqParts((prev) => prev.map((r, j) => j === i ? { ...r, qty: e.target.value } : r))}
+                          className="w-14 border border-gray-200 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                        />
+                        <button type="button" onClick={() => {
+                          setNewReqParts((prev) => prev.filter((_, j) => j !== i));
+                          setReqSearchResults((r) => { const n = { ...r }; delete n[i]; return n; });
+                        }} className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      {p.productId && (
+                        <p className="text-[10px] text-blue-600 pl-7">✓ Stoktan seçildi</p>
+                      )}
                     </div>
                   ))}
                 </div>

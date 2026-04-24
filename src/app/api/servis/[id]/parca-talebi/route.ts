@@ -10,6 +10,7 @@ const partItemSchema = z.object({
   code: z.string().optional(),
   qty: z.coerce.number().int().positive(),
   unitPrice: z.coerce.number().optional(),
+  productId: z.string().optional(),
 });
 
 const createSchema = z.object({

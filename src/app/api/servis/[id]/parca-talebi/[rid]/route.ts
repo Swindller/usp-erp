@@ -10,7 +10,7 @@ const patchSchema = z.object({
   action: z.enum(["approve", "reject", "deliver"]),
 });
 
-interface PartItem { name: string; code?: string; qty: number; unitPrice?: number }
+interface PartItem { name: string; code?: string; qty: number; unitPrice?: number; productId?: string }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; rid: string }> }) {
   const user = await getAuthUser();
@@ -86,11 +86,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Auto-add parts to report.partsUsed
     const reqParts = (partsReq.parts as unknown as PartItem[]).map((p) => ({
-      productId: "manual",
+      productId: p.productId || "manual",
       name: p.name,
       partNo: p.code || "",
       quantity: p.qty,
-      unitPrice: p.unitPrice || 0,
+      unitPrice: p.unitPrice || 0,   // Fiyat arka planda saklanır, teknisyen görmez
     }));
     const existingParts = (partsReq.serviceReport.partsUsed as unknown as typeof reqParts | null) || [];
     const merged = [...existingParts, ...reqParts];

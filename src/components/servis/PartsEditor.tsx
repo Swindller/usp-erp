@@ -25,9 +25,10 @@ interface Props {
   parts: PartItem[];
   onChange: (parts: PartItem[]) => void;
   disabled?: boolean;
+  hidePrices?: boolean;
 }
 
-export function PartsEditor({ parts, onChange, disabled = false }: Props) {
+export function PartsEditor({ parts, onChange, disabled = false, hidePrices = false }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<CatalogProduct[]>([]);
   const [searching, setSearching] = useState(false);
@@ -109,13 +110,21 @@ export function PartsEditor({ parts, onChange, disabled = false }: Props) {
       {parts.length > 0 && (
         <div className="space-y-2">
           {/* Header */}
-          <div className="hidden sm:grid grid-cols-12 gap-2 px-1 text-xs font-medium text-gray-400">
-            <span className="col-span-4">Parça Adı</span>
-            <span className="col-span-3">Parça No / SKU</span>
-            <span className="col-span-2 text-center">Adet</span>
-            <span className="col-span-2 text-right">Birim ₺</span>
-            <span className="col-span-1" />
-          </div>
+          {hidePrices ? (
+            <div className="hidden sm:grid grid-cols-12 gap-2 px-1 text-xs font-medium text-gray-400">
+              <span className="col-span-8">Parça Adı</span>
+              <span className="col-span-3 text-center">Adet</span>
+              <span className="col-span-1" />
+            </div>
+          ) : (
+            <div className="hidden sm:grid grid-cols-12 gap-2 px-1 text-xs font-medium text-gray-400">
+              <span className="col-span-4">Parça Adı</span>
+              <span className="col-span-3">Parça No / SKU</span>
+              <span className="col-span-2 text-center">Adet</span>
+              <span className="col-span-2 text-right">Birim ₺</span>
+              <span className="col-span-1" />
+            </div>
+          )}
 
           {parts.map((part, i) => (
             <div
@@ -126,73 +135,92 @@ export function PartsEditor({ parts, onChange, disabled = false }: Props) {
                   : "bg-gray-50 border-gray-100"
               }`}
             >
-              <div className="col-span-12 sm:col-span-4 flex items-center gap-1.5">
-                {part.productId && (
-                  <Package size={12} className="text-blue-400 flex-shrink-0" />
-                )}
-                <input
-                  value={part.name}
-                  onChange={(e) => updatePart(i, "name", e.target.value)}
-                  disabled={disabled}
-                  placeholder="Parça adı"
-                  className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
-                />
-              </div>
-              <div className="col-span-5 sm:col-span-3">
-                <input
-                  value={part.partNo || ""}
-                  onChange={(e) => updatePart(i, "partNo", e.target.value)}
-                  disabled={disabled}
-                  placeholder="SKU / No"
-                  className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary font-mono disabled:opacity-60"
-                />
-              </div>
-              <div className="col-span-3 sm:col-span-2">
-                <input
-                  type="number"
-                  min={1}
-                  value={part.quantity}
-                  onChange={(e) => updatePart(i, "quantity", parseInt(e.target.value) || 1)}
-                  disabled={disabled}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary text-center disabled:opacity-60"
-                />
-              </div>
-              <div className="col-span-3 sm:col-span-2">
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={part.unitPrice}
-                  onChange={(e) => updatePart(i, "unitPrice", parseFloat(e.target.value) || 0)}
-                  disabled={disabled}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary text-right disabled:opacity-60"
-                />
-              </div>
-              <div className="col-span-1 flex justify-end">
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => removePart(i)}
-                    className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-
-              {/* Line total */}
-              <div className="col-span-12 text-right text-xs text-gray-500 pr-8 -mt-1">
-                ₺{(part.quantity * part.unitPrice).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-              </div>
+              {hidePrices ? (
+                <>
+                  <div className="col-span-11 flex items-center gap-1.5">
+                    {part.productId && <Package size={12} className="text-blue-400 flex-shrink-0" />}
+                    <span className="text-xs font-medium text-gray-800">{part.name || "—"}</span>
+                  </div>
+                  <div className="col-span-1 flex justify-end">
+                    {!disabled && (
+                      <button type="button" onClick={() => removePart(i)} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="col-span-12 flex items-center gap-2 -mt-1 pl-5">
+                    <span className="text-xs text-gray-500">Adet:</span>
+                    {disabled ? (
+                      <span className="text-xs font-semibold text-gray-700">{part.quantity}</span>
+                    ) : (
+                      <input
+                        type="number" min={1} value={part.quantity}
+                        onChange={(e) => updatePart(i, "quantity", parseInt(e.target.value) || 1)}
+                        className="w-16 px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary text-center"
+                      />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="col-span-12 sm:col-span-4 flex items-center gap-1.5">
+                    {part.productId && <Package size={12} className="text-blue-400 flex-shrink-0" />}
+                    <input
+                      value={part.name}
+                      onChange={(e) => updatePart(i, "name", e.target.value)}
+                      disabled={disabled}
+                      placeholder="Parça adı"
+                      className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                    />
+                  </div>
+                  <div className="col-span-5 sm:col-span-3">
+                    <input
+                      value={part.partNo || ""}
+                      onChange={(e) => updatePart(i, "partNo", e.target.value)}
+                      disabled={disabled}
+                      placeholder="SKU / No"
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary font-mono disabled:opacity-60"
+                    />
+                  </div>
+                  <div className="col-span-3 sm:col-span-2">
+                    <input
+                      type="number" min={1} value={part.quantity}
+                      onChange={(e) => updatePart(i, "quantity", parseInt(e.target.value) || 1)}
+                      disabled={disabled}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary text-center disabled:opacity-60"
+                    />
+                  </div>
+                  <div className="col-span-3 sm:col-span-2">
+                    <input
+                      type="number" min={0} step={0.01} value={part.unitPrice}
+                      onChange={(e) => updatePart(i, "unitPrice", parseFloat(e.target.value) || 0)}
+                      disabled={disabled}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary text-right disabled:opacity-60"
+                    />
+                  </div>
+                  <div className="col-span-1 flex justify-end">
+                    {!disabled && (
+                      <button type="button" onClick={() => removePart(i)} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="col-span-12 text-right text-xs text-gray-500 pr-8 -mt-1">
+                    ₺{(part.quantity * part.unitPrice).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
-          {/* Totals */}
-          <div className="flex justify-end pt-1 border-t border-gray-200">
-            <div className="text-sm font-semibold text-gray-800">
-              Parça Toplamı: ₺{totalCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+          {/* Totals — sadece admin/manager için */}
+          {!hidePrices && (
+            <div className="flex justify-end pt-1 border-t border-gray-200">
+              <div className="text-sm font-semibold text-gray-800">
+                Parça Toplamı: ₺{totalCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -265,9 +293,11 @@ export function PartsEditor({ parts, onChange, disabled = false }: Props) {
                             {` · Stok: ${product.stock}`}
                           </p>
                         </div>
-                        <span className="text-sm font-semibold text-gray-700 flex-shrink-0">
-                          ₺{product.price.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-                        </span>
+                        {!hidePrices && (
+                          <span className="text-sm font-semibold text-gray-700 flex-shrink-0">
+                            ₺{product.price.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
