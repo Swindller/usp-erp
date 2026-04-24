@@ -77,6 +77,7 @@ export default function FaturaDetailPage() {
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -112,6 +113,20 @@ export default function FaturaDetailPage() {
       await load(true);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changeStatus = async (status: InvoiceStatus) => {
+    setChangingStatus(true);
+    try {
+      const res = await fetch(`/api/muhasebe/faturalar/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) await load(true);
+    } finally {
+      setChangingStatus(false);
     }
   };
 
@@ -216,11 +231,61 @@ export default function FaturaDetailPage() {
             )}
           </div>
 
-          {!isPaid && (
-            <button onClick={() => setShowPaymentForm(true)} className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors">
-              <Plus size={16} />Ödeme Kaydet
-            </button>
-          )}
+          {/* Durum aksiyonları */}
+          <div className="space-y-2">
+            {invoice.status === "DRAFT" && (
+              <button
+                onClick={() => changeStatus("SENT")}
+                disabled={changingStatus}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 size={15} />
+                {changingStatus ? "İşleniyor..." : "Faturayı Onayla (Gönderildi)"}
+              </button>
+            )}
+            {invoice.status === "SENT" && (
+              <button
+                onClick={() => setShowPaymentForm(true)}
+                className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-green-700 transition-colors"
+              >
+                <Plus size={16} />Ödeme Kaydet
+              </button>
+            )}
+            {invoice.status === "PARTIALLY_PAID" && (
+              <button
+                onClick={() => setShowPaymentForm(true)}
+                className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-green-700 transition-colors"
+              >
+                <Plus size={16} />Kalan Ödemeyi Kaydet
+              </button>
+            )}
+            {invoice.status === "OVERDUE" && (
+              <button
+                onClick={() => setShowPaymentForm(true)}
+                className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-orange-700 transition-colors"
+              >
+                <Plus size={16} />Ödeme Kaydet (Gecikmiş)
+              </button>
+            )}
+            {!["DRAFT", "PAID", "CANCELLED"].includes(invoice.status) && (
+              <button
+                onClick={() => changeStatus("CANCELLED")}
+                disabled={changingStatus}
+                className="w-full flex items-center justify-center gap-2 border border-red-200 text-red-600 rounded-xl py-2 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {changingStatus ? "İşleniyor..." : "Faturayı İptal Et"}
+              </button>
+            )}
+            {invoice.status === "DRAFT" && (
+              <button
+                onClick={() => changeStatus("CANCELLED")}
+                disabled={changingStatus}
+                className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-500 rounded-xl py-2 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {changingStatus ? "İşleniyor..." : "Taslağı Sil (İptal)"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Sağ: Müşteri Bilgileri */}
