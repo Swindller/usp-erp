@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Wrench, Users, Banknote, UserCog,
-  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign,
+  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign, ClipboardList,
 } from "lucide-react";
 
 const ALL_NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, permKey: "dashboard" },
   { href: "/servis", label: "Servis Raporları", icon: Wrench, permKey: "servis" },
+  { href: "/servis/planlama", label: "Servis Planlaması", icon: ClipboardList, permKey: "servis" },
   { href: "/musteriler", label: "Müşteriler", icon: Users, permKey: "musteriler" },
   { href: "/muhasebe", label: "Muhasebe", icon: Banknote, permKey: "muhasebe" },
   { href: "/stok", label: "Stok Yönetimi", icon: Package, permKey: "stok" },

@@ -650,6 +650,8 @@ model Personnel {
   payrolls        Payroll[]
   partsRequested    PartsRequest[] @relation("PartsRequester")
   partsApproved     PartsRequest[] @relation("PartsApprover")
+  planTaskAssignments PlanTaskAssignee[] @relation("PlanTaskAssignments")
+  createdPlans        ServicePlan[]      @relation("PlanCreator")
 }
 
 // ─── ERP: SERVICE REPORTS ─────────────────────────────────
@@ -748,6 +750,7 @@ model ServiceReport {
   invoices              Invoice[]
   additionalTechnicians Personnel[] @relation("AdditionalTechnicians")
   partsRequests         PartsRequest[]
+  planTasks             PlanTask[]
 
   @@index([customerId])
   @@index([status])
@@ -1133,4 +1136,77 @@ model IncomingInvoice {
   @@index([status])
   @@index([dueDate])
   @@index([invoiceDate])
+}
+
+// ─── ERP: SERVICE PLANNING ────────────────────────────────
+
+enum PlanTaskType {
+  FIELD_VISIT  // Saha Ziyareti
+  WORKSHOP     // Atölye Görevi
+  OTHER        // Diğer
+}
+
+enum PlanTaskStatus {
+  PENDING      // Bekliyor
+  EN_ROUTE     // Yola Çıktı
+  ARRIVED      // Vardı
+  IN_PROGRESS  // Çalışıyor
+  DONE         // Tamamlandı
+  CANCELLED    // İptal
+}
+
+model ServicePlan {
+  id          String     @id @default(cuid())
+  date        DateTime   @db.Date
+  title       String?
+  notes       String?    @db.Text
+  createdById String?
+  createdBy   Personnel? @relation("PlanCreator", fields: [createdById], references: [id])
+  tasks       PlanTask[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([date])
+  @@index([date])
+}
+
+model PlanTask {
+  id          String         @id @default(cuid())
+  planId      String
+  plan        ServicePlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  type        PlanTaskType   @default(FIELD_VISIT)
+  title       String
+  description String?        @db.Text
+  address     String?
+
+  sortOrder   Int            @default(0)
+  status      PlanTaskStatus @default(PENDING)
+
+  assignees   PlanTaskAssignee[]
+
+  serviceReportId String?
+  serviceReport   ServiceReport? @relation(fields: [serviceReportId], references: [id])
+
+  startedAt   DateTime?
+  arrivedAt   DateTime?
+  completedAt DateTime?
+
+  notes       String?        @db.Text
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([planId, sortOrder])
+  @@index([status])
+}
+
+model PlanTaskAssignee {
+  taskId      String
+  task        PlanTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  personnelId String
+  personnel   Personnel @relation("PlanTaskAssignments", fields: [personnelId], references: [id])
+
+  @@id([taskId, personnelId])
+  @@index([personnelId])
 }
