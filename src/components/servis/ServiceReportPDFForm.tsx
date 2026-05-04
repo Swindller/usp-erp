@@ -552,14 +552,17 @@ export function ServiceReportPDFForm({ personnel }: Props) {
               placeholder="Seri numarası" className={inp} />
           </LabelVal>
           <LabelVal label="Üretim Tarihi:" className="flex-1 border-r border-gray-300">
-            <div className="flex gap-1">
-              <select value={deviceWeek} onChange={(e) => setDeviceWeek(e.target.value)} className={`${inp} w-20`}>
-                <option value="">Hafta</option>
+            <div className="flex gap-0.5">
+              {/* w-full'sız özel sınıf — inp w-full ile çakışıyor */}
+              <select value={deviceWeek} onChange={(e) => setDeviceWeek(e.target.value)}
+                className="border-0 outline-none bg-transparent text-[11px] w-14 flex-shrink-0">
+                <option value="">Hft.</option>
                 {Array.from({ length: 53 }, (_, i) => i + 1).map((w) => (
-                  <option key={w} value={String(w)}>{w}. Hafta</option>
+                  <option key={w} value={String(w)}>{w}. Hft</option>
                 ))}
               </select>
-              <select value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)} className={`${inp} flex-1`}>
+              <select value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)}
+                className="border-0 outline-none bg-transparent text-[11px] flex-1 min-w-0">
                 <option value="">Yıl</option>
                 {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                   <option key={y} value={String(y)}>{y}</option>

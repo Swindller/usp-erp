@@ -78,13 +78,15 @@ function getDayState(
   lookup: Map<string, Attendance>
 ): DayState {
   const dow = new Date(year, month - 1, day).getDay();
+  // Hafta sonu olsa bile kayıt var mı kontrol et
+  const a = lookup.get(`${person.id}_${day}`);
+  if (a?.absenceReason === "HOLIDAY") return "holiday";
+  if (a?.isAbsent) return "absent";
+  if (a && !a.isAbsent) return "present";
+  // Kayıt yoksa: hafta sonu veya resmi tatil için varsayılan görünüm
   if (dow === 0 || dow === 6) return "weekend";
   if (isResmiTatilFixed(day, month)) return "fixed_holiday";
-  const a = lookup.get(`${person.id}_${day}`);
-  if (!a) return "none";
-  if (a.absenceReason === "HOLIDAY") return "holiday";
-  if (a.isAbsent) return "absent";
-  return "present";
+  return "none";
 }
 
 const DOT_COLORS: Record<DayState, string | null> = {
@@ -324,17 +326,15 @@ export default function DevamsizlikPage() {
                       const isFixedHol = state === "fixed_holiday";
                       return (
                         <td key={d} className={`px-1.5 py-2.5 text-center ${isWeekend ? "bg-blue-50/40" : isFixedHol ? "bg-orange-50/30" : ""}`}>
-                          {isWeekend ? (
-                            <span className="w-3 h-3 rounded-full bg-gray-100 inline-block" />
-                          ) : (
-                            <button
-                              onClick={() => openModal(person, d)}
-                              className="w-5 h-5 rounded-full mx-auto flex items-center justify-center hover:scale-125 transition-transform"
-                              title={`${personnelName(person)} — ${d} ${MONTHS[month - 1]}`}
-                            >
-                              <span className={`w-3 h-3 rounded-full ${dotColor ?? "bg-gray-300"}`} />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => openModal(person, d)}
+                            className="w-5 h-5 rounded-full mx-auto flex items-center justify-center hover:scale-125 transition-transform"
+                            title={`${personnelName(person)} — ${d} ${MONTHS[month - 1]}${isWeekend ? " (Hafta sonu)" : ""}`}
+                          >
+                            <span className={`w-3 h-3 rounded-full ${
+                              dotColor ?? (isWeekend ? "bg-blue-100" : "bg-gray-300")
+                            }`} />
+                          </button>
                         </td>
                       );
                     })}
