@@ -1263,3 +1263,104 @@ model Quote {
   @@index([status])
   @@index([quoteNumber])
 }
+
+// ─── ERP: IT ENVANTER ─────────────────────────────────────────────────────────
+
+model ItPhone {
+  id             String    @id @default(cuid())
+  siraNo         Int?
+  gsmNumara      String?
+  kisaKod        String?
+  kullaniciAdi   String?
+  departman      String?
+  gorev          String?
+  hatDurum       String?   @default("Aktif")
+  cihazMarka     String?
+  cihazModel     String?
+  imei1          String?
+  imei2          String?
+  faturaNo       String?
+  tarife         String?
+  tarifeHaklari  String?
+  pin            String?
+  teslimDurumu   String?
+  teslimTarihi   DateTime?
+  aciklama       String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([departman])
+  @@index([kullaniciAdi])
+}
+
+model ItComputer {
+  id                String   @id @default(cuid())
+  pcAdi             String?
+  kullanici         String?
+  bolum             String?
+  monitor           String?
+  islemci           String?
+  ram               String?
+  grafikKarti       String?
+  depolama          String?
+  isletimSistemi    String?
+  kuralanProgramlar String?  @db.Text
+  yazici            String?
+  hariciDonanim     String?
+  kullaniciAdi      String?
+  urunAnahtari      String?
+  aciklama          String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([bolum])
+  @@index([pcAdi])
+}
+
+model ItPrinter {
+  id        String   @id @default(cuid())
+  departman String?
+  kullanan  String?
+  yaziciAdi String?
+  baglanti  String?  // IP adresi veya "Kablo"
+  aciklama  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departman])
+}
+
+model ItCamera {
+  id        String   @id @default(cuid())
+  kameraNo  String?
+  isim      String?
+  ip        String?
+  konum     String?
+  mac       String?
+  tip       String?  // "İÇ ORTAM" | "DIŞ ORTAM"
+  switch    String?
+  port      String?
+  aciklama  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([konum])
+  @@index([ip])
+}
+
+model ItSwitch {
+  id        String   @id @default(cuid())
+  swAdi     String?
+  ip        String?
+  lokasyon  String?
+  bolge     String?
+  marka     String?
+  port      String?
+  bb        String?
+  aciklama  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lokasyon])
+  @@index([ip])
+}

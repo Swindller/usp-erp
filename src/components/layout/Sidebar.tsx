@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Wrench, Users, Banknote, UserCog,
-  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign, ClipboardList, FileCheck,
+  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign, ClipboardList, FileCheck, Monitor,
 } from "lucide-react";
 
 const ALL_NAV = [
@@ -19,7 +19,8 @@ const ALL_NAV = [
   { href: "/devamsizlik", label: "Devamsızlık", icon: CalendarDays, permKey: "devamsizlik" },
   { href: "/vergiler", label: "Vergi Takibi", icon: Receipt, permKey: "vergiler" },
   { href: "/personel", label: "Personel", icon: UserCog, permKey: "personel" },
-  { href: "/teklifler", label: "Teklifler", icon: FileCheck, permKey: "teklifler" },
+  { href: "/teklifler",   label: "Teklifler",    icon: FileCheck, permKey: "teklifler"   },
+  { href: "/it-envanter", label: "IT Envanter",  icon: Monitor,   permKey: "it-envanter" },
 ];
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
