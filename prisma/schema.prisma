@@ -612,6 +612,7 @@ model Customer {
   serviceReports ServiceReport[]
   invoices            Invoice[]
   annualMaintenances  AnnualMaintenance[]
+  quotes              Quote[]
 
   @@index([phone])
   @@index([type])
@@ -652,6 +653,7 @@ model Personnel {
   partsApproved     PartsRequest[] @relation("PartsApprover")
   planTaskAssignments PlanTaskAssignee[] @relation("PlanTaskAssignments")
   createdPlans        ServicePlan[]      @relation("PlanCreator")
+  createdQuotes       Quote[]            @relation("QuoteCreator")
 }
 
 // ─── ERP: SERVICE REPORTS ─────────────────────────────────
@@ -688,7 +690,7 @@ model ServiceReport {
   deviceModel   String?
   deviceSerial  String?
   deviceYear    Int?
-  deviceMonth   Int?    // 1-12
+  deviceWeek    Int?    // 1-53
   devicePower   String?
   deviceVoltage String?
   devicePhase   String?
@@ -751,6 +753,7 @@ model ServiceReport {
   additionalTechnicians Personnel[] @relation("AdditionalTechnicians")
   partsRequests         PartsRequest[]
   planTasks             PlanTask[]
+  quotes                Quote[]
 
   @@index([customerId])
   @@index([status])
@@ -1209,4 +1212,54 @@ model PlanTaskAssignee {
 
   @@id([taskId, personnelId])
   @@index([personnelId])
+}
+
+// ─── TEKLİFLER ────────────────────────────────────────────
+
+enum QuoteStatus {
+  DRAFT      // Taslak
+  SENT       // Gönderildi
+  APPROVED   // Onaylandı
+  REJECTED   // Reddedildi
+  CONVERTED  // Faturaya Dönüştürüldü
+  EXPIRED    // Süresi Doldu
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  quoteNumber String      @unique  // TKL-2024-001
+
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+
+  status      QuoteStatus @default(DRAFT)
+  title       String?
+  notes       String?     @db.Text
+
+  // Kalemler: [{name, description, quantity, unitPrice}]
+  items       Json
+
+  subtotal    Decimal     @db.Decimal(10, 2)
+  taxRate     Decimal     @default(20) @db.Decimal(5, 2)
+  taxAmount   Decimal     @db.Decimal(10, 2)
+  total       Decimal     @db.Decimal(10, 2)
+
+  validUntil  DateTime?
+
+  serviceReportId String?
+  serviceReport   ServiceReport? @relation(fields: [serviceReportId], references: [id])
+
+  createdById String?
+  createdBy   Personnel?  @relation("QuoteCreator", fields: [createdById], references: [id])
+
+  sentAt      DateTime?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([quoteNumber])
 }

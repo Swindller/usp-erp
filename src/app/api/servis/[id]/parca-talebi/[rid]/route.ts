@@ -7,7 +7,7 @@ const APPROVE_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER"];
 const ALL_ROLES = ["ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN"];
 
 const patchSchema = z.object({
-  action: z.enum(["approve", "reject", "deliver"]),
+  action: z.enum(["approve", "reject", "deliver", "undeliver"]),
 });
 
 interface PartItem { name: string; code?: string; qty: number; unitPrice?: number; productId?: string }
@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { action } = parsed.data;
 
-  if ((action === "approve" || action === "reject") && !APPROVE_ROLES.includes(user.role))
+  if ((action === "approve" || action === "reject" || action === "undeliver") && !APPROVE_ROLES.includes(user.role))
     return NextResponse.json({ error: "Bu işlem için yetkiniz yok" }, { status: 403 });
 
   const personnel = await prisma.personnel.findFirst({ where: { user: { email: user.email } } });
@@ -113,6 +113,53 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         personnelId: personnel?.id,
       },
     });
+  }
+
+  // undeliver: teslim edilen parçayı geri al → APPROVED'a döner, partsUsed'dan çıkar
+  if (action === "undeliver") {
+    if (partsReq.status !== "DELIVERED")
+      return NextResponse.json({ error: "Sadece teslim edilmiş talepler geri alınabilir" }, { status: 400 });
+
+    updated = await prisma.partsRequest.update({
+      where: { id: rid },
+      data: { status: "APPROVED", deliveredAt: null },
+      include: {
+        requestedBy: { include: { user: { select: { firstName: true, lastName: true } } } },
+        approvedBy: { include: { user: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+
+    // Bu talebe ait parçaları partsUsed'dan çıkar
+    // partsUsed'da qty değil quantity var (deliver'da dönüştürülüyor)
+    type UsedItem = { productId?: string; name: string; quantity: number; unitPrice: number; partNo?: string };
+    const reqPartNames = (partsReq.parts as unknown as PartItem[]).map((p) => p.name);
+    const existing = (partsReq.serviceReport.partsUsed as unknown as UsedItem[] | null) || [];
+    const reqParts = (partsReq.parts as unknown as PartItem[]);
+    const filtered: UsedItem[] = [...existing];
+    for (const rp of reqParts) {
+      const idx = filtered.findIndex((p) =>
+        (rp.productId && p.productId === rp.productId) || p.name === rp.name
+      );
+      if (idx !== -1) filtered.splice(idx, 1);
+    }
+    const partsCost = filtered.reduce((s, p) => s + p.quantity * p.unitPrice, 0);
+
+    await prisma.serviceReport.update({
+      where: { id },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: { partsUsed: filtered as any, partsCost },
+    });
+
+    await prisma.serviceLog.create({
+      data: {
+        serviceReportId: id,
+        type: "PARTS_UPDATED",
+        description: `Parça talebi geri alındı (${reqPartNames.join(", ")}), kullanılan parçalardan çıkarıldı`,
+        personnelId: personnel?.id,
+      },
+    });
+
+    return NextResponse.json({ request: updated });
   }
 
   return NextResponse.json({ request: updated });

@@ -463,7 +463,7 @@ export function ServiceReportDetail({
     }
   };
 
-  const handlePartsRequestAction = async (reqId: string, action: "approve" | "reject" | "deliver") => {
+  const handlePartsRequestAction = async (reqId: string, action: "approve" | "reject" | "deliver" | "undeliver") => {
     try {
       const res = await fetch(`/api/servis/${report.id}/parca-talebi/${reqId}`, {
         method: "PATCH",
@@ -473,7 +473,7 @@ export function ServiceReportDetail({
       const data = await res.json();
       if (!res.ok) return;
       setPartsRequests((prev) => prev.map((r) => r.id === reqId ? data.request : r));
-      if (action === "deliver") {
+      if (action === "deliver" || action === "undeliver") {
         // Reload report parts
         const rRes = await fetch(`/api/servis/${report.id}`);
         const rData = await rRes.json();
@@ -996,8 +996,21 @@ export function ServiceReportDetail({
                             Teslim Alındı
                           </button>
                         )}
-                        {req.status === "DELIVERED" && req.deliveredAt && (
-                          <span className="text-[10px] text-green-600">Teslim: {fmtDateTime(req.deliveredAt)}</span>
+                        {req.status === "DELIVERED" && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {req.deliveredAt && (
+                              <span className="text-[10px] text-green-600">Teslim: {fmtDateTime(req.deliveredAt)}</span>
+                            )}
+                            {canApprove && (
+                              <button
+                                type="button"
+                                onClick={() => handlePartsRequestAction(req.id, "undeliver")}
+                                className="px-2.5 py-1 border border-orange-200 text-orange-600 text-xs rounded-lg hover:bg-orange-50 transition-colors"
+                              >
+                                Geri Al
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Wrench, Users, Banknote, UserCog,
-  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign, ClipboardList,
+  LogOut, ChevronRight, Droplets, Shield, Package, Receipt, CalendarDays, DollarSign, ClipboardList, FileCheck,
 } from "lucide-react";
 
 const ALL_NAV = [
@@ -19,6 +19,7 @@ const ALL_NAV = [
   { href: "/devamsizlik", label: "Devamsızlık", icon: CalendarDays, permKey: "devamsizlik" },
   { href: "/vergiler", label: "Vergi Takibi", icon: Receipt, permKey: "vergiler" },
   { href: "/personel", label: "Personel", icon: UserCog, permKey: "personel" },
+  { href: "/teklifler", label: "Teklifler", icon: FileCheck, permKey: "teklifler" },
 ];
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
@@ -39,6 +40,20 @@ export function Sidebar({ permissions }: SidebarProps) {
     isAdmin || (permissions ?? []).includes(item.permKey)
   );
 
+  // En spesifik eşleşmeyi bul (örn. /servis/planlama, /servis'i de aktif etmemeli)
+  const getIsActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    // Önce tam eşleşme
+    if (pathname === href) return true;
+    // Alt sayfa eşleşmesi — ama başka bir nav öğesi daha spesifik eşleşiyorsa hayır
+    if (!pathname.startsWith(href + "/")) return false;
+    // Daha spesifik bir nav öğesi bu path'i kapsıyor mu?
+    const moreSpecific = visibleNav.some(
+      (other) => other.href !== href && other.href.startsWith(href) && pathname.startsWith(other.href)
+    );
+    return !moreSpecific;
+  };
+
   return (
     <aside className="w-64 min-h-screen bg-slate-900 flex flex-col">
       {/* Logo */}
@@ -55,10 +70,7 @@ export function Sidebar({ permissions }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {visibleNav.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
+          const isActive = getIsActive(item.href);
           return (
             <Link
               key={item.href}

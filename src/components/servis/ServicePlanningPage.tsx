@@ -64,7 +64,7 @@ interface Props {
 
 const TYPE_CONFIG: Record<PlanTaskType, { label: string; icon: React.ReactNode; classes: string }> = {
   FIELD_VISIT: { label: "Saha",    icon: <Navigation size={12} />, classes: "bg-blue-100 text-blue-700 border-blue-200" },
-  WORKSHOP:    { label: "Atölye",  icon: <Wrench size={12} />,     classes: "bg-purple-100 text-purple-700 border-purple-200" },
+  WORKSHOP:    { label: "Devriye Alma",  icon: <Wrench size={12} />,     classes: "bg-purple-100 text-purple-700 border-purple-200" },
   OTHER:       { label: "Diğer",   icon: <MoreHorizontal size={12} />, classes: "bg-gray-100 text-gray-600 border-gray-200" },
 };
 
@@ -133,16 +133,25 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
     type: "FIELD_VISIT" as PlanTaskType,
     title: "",
     description: "",
-    address: "",
+    addresses: [""] as string[],  // çoklu adres
     assigneeIds: [] as string[],
     serviceReportId: "",
     notes: "",
   });
   const [taskError, setTaskError] = useState("");
 
-  // Düzenleme
+  // Düzenleme — edit form, DB'deki 'address' (string) alanını kullanır
+  type EditFormType = {
+    type?: PlanTaskType;
+    title?: string;
+    description?: string;
+    address?: string;   // DB alanı (newline-separated)
+    assigneeIds?: string[];
+    serviceReportId?: string;
+    notes?: string;
+  };
   const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<typeof taskForm & { assigneeIds: string[] }>>({});
+  const [editForm, setEditForm] = useState<EditFormType>({});
 
   const loadPlan = useCallback(async (date: string) => {
     setLoading(true);
@@ -161,6 +170,9 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
     if (!taskForm.title.trim()) { setTaskError("Görev başlığı zorunludur"); return; }
     setSaving(true);
     setTaskError("");
+    // addresses -> address (newline-separated, boşları temizle)
+    const address = taskForm.addresses.filter((a) => a.trim()).join("\n") || undefined;
+    const { addresses: _addresses, ...formRest } = taskForm;
     try {
       // Plan varsa görev ekle, yoksa plan+görev oluştur
       if (plan) {
@@ -169,9 +181,10 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             addTask: {
-              ...taskForm,
+              ...formRest,
+              address,
               sortOrder: plan.tasks.length,
-              serviceReportId: taskForm.serviceReportId || undefined,
+              serviceReportId: formRest.serviceReportId || undefined,
             },
           }),
         });
@@ -185,9 +198,10 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
           body: JSON.stringify({
             date: selectedDate,
             tasks: [{
-              ...taskForm,
+              ...formRest,
+              address,
               sortOrder: 0,
-              serviceReportId: taskForm.serviceReportId || undefined,
+              serviceReportId: formRest.serviceReportId || undefined,
             }],
           }),
         });
@@ -196,7 +210,7 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
         setPlan(data.plan);
       }
       setShowAddTask(false);
-      setTaskForm({ type: "FIELD_VISIT", title: "", description: "", address: "", assigneeIds: [], serviceReportId: "", notes: "" });
+      setTaskForm({ type: "FIELD_VISIT", title: "", description: "", addresses: [""], assigneeIds: [], serviceReportId: "", notes: "" });
     } finally {
       setSaving(false);
     }
@@ -409,19 +423,46 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
                         )}
                       </div>
 
-                      {/* Adres */}
+                      {/* Adres(ler) */}
                       {(isEditing ? true : task.address) && (
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <MapPin size={11} className="text-gray-400 flex-shrink-0" />
+                        <div className="mt-1">
                           {isEditing ? (
-                            <input
-                              value={editForm.address || ""}
-                              onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
-                              placeholder="Adres / Konum"
-                              className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
-                            />
+                            <div className="space-y-1">
+                              {(editForm.address || "").split("\n").map((addr, ai) => (
+                                <div key={ai} className="flex items-center gap-1.5">
+                                  <MapPin size={11} className="text-gray-400 flex-shrink-0" />
+                                  <input
+                                    value={addr}
+                                    onChange={(e) => {
+                                      const lines = (editForm.address || "").split("\n");
+                                      lines[ai] = e.target.value;
+                                      setEditForm((f) => ({ ...f, address: lines.join("\n") }));
+                                    }}
+                                    placeholder={`${ai + 1}. Adres / Konum`}
+                                    className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
+                                  />
+                                  {ai > 0 && (
+                                    <button type="button" onClick={() => {
+                                      const lines = (editForm.address || "").split("\n").filter((_, i) => i !== ai);
+                                      setEditForm((f) => ({ ...f, address: lines.join("\n") }));
+                                    }} className="text-red-400 hover:text-red-600"><X size={12} /></button>
+                                  )}
+                                </div>
+                              ))}
+                              <button type="button" onClick={() => setEditForm((f) => ({ ...f, address: (f.address || "") + "\n" }))}
+                                className="text-[10px] text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
+                                <Plus size={10} />Adres Ekle
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-xs text-gray-500">{task.address}</span>
+                            <div className="space-y-0.5">
+                              {task.address!.split("\n").filter(Boolean).map((addr, ai) => (
+                                <div key={ai} className="flex items-center gap-1.5">
+                                  <MapPin size={11} className="text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs text-gray-500">{addr}</span>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       )}
@@ -650,18 +691,40 @@ export function ServicePlanningPage({ personnel, userRole, currentPersonnelId }:
                 />
               </div>
 
-              {/* Adres (saha için) */}
+              {/* Adresler (saha için - çoklu) */}
               {taskForm.type === "FIELD_VISIT" && (
                 <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">
-                    <MapPin size={11} className="inline mr-1" />Adres / Konum
+                  <label className="text-xs font-medium text-gray-600 block mb-1.5">
+                    <MapPin size={11} className="inline mr-1" />Gidilecek Yerler
                   </label>
-                  <input
-                    value={taskForm.address}
-                    onChange={(e) => setTaskForm((f) => ({ ...f, address: e.target.value }))}
-                    placeholder="Tam adres veya konum bilgisi"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
+                  <div className="space-y-2">
+                    {taskForm.addresses.map((addr, ai) => (
+                      <div key={ai} className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-400 w-4 text-center flex-shrink-0">{ai + 1}.</span>
+                        <input
+                          value={addr}
+                          onChange={(e) => setTaskForm((f) => {
+                            const addrs = [...f.addresses];
+                            addrs[ai] = e.target.value;
+                            return { ...f, addresses: addrs };
+                          })}
+                          placeholder={`${ai + 1}. Adres veya konum`}
+                          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                        {ai > 0 && (
+                          <button type="button" onClick={() => setTaskForm((f) => ({
+                            ...f, addresses: f.addresses.filter((_, i) => i !== ai),
+                          }))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setTaskForm((f) => ({ ...f, addresses: [...f.addresses, ""] }))}
+                      className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline mt-1">
+                      <Plus size={12} />Başka Yer Ekle
+                    </button>
+                  </div>
                 </div>
               )}
 

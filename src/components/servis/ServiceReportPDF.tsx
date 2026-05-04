@@ -102,7 +102,7 @@ interface ReportPDFProps {
     deviceModel: string | null;
     deviceSerial: string | null;
     deviceYear: number | null;
-    deviceMonth: number | null;
+    deviceWeek: number | null;
     devicePower: string | null;
     customerSignature: string | null;
     technicianSignature: string | null;
@@ -286,8 +286,8 @@ export function ServiceReportPDF({ report }: ReportPDFProps) {
               <Text style={s.label}>Üretim Tarihi</Text>
               <Text style={s.value}>{
                 report.deviceYear
-                  ? report.deviceMonth
-                    ? `${["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"][report.deviceMonth - 1]} ${report.deviceYear}`
+                  ? report.deviceWeek
+                    ? `${report.deviceWeek}. Hafta ${report.deviceYear}`
                     : String(report.deviceYear)
                   : "—"
               }</Text>

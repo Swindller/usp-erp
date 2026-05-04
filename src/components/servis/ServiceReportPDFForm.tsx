@@ -196,7 +196,7 @@ export function ServiceReportPDFForm({ personnel }: Props) {
   const [deviceModel, setDeviceModel] = useState("");
   const [deviceSerial, setDeviceSerial] = useState("");
   const [deviceYear, setDeviceYear] = useState("");
-  const [deviceMonth, setDeviceMonth] = useState("");
+  const [deviceWeek, setDeviceWeek] = useState("");
   const [devicePower, setDevicePower] = useState("");
   const [complaint, setComplaint] = useState("");
   const [diagnoses, setDiagnoses] = useState<string[]>(Array(9).fill(""));
@@ -286,7 +286,7 @@ export function ServiceReportPDFForm({ personnel }: Props) {
       deviceModel: deviceModel || undefined,
       deviceSerial: deviceSerial || undefined,
       deviceYear: deviceYear ? parseInt(deviceYear) : undefined,
-      deviceMonth: deviceMonth ? parseInt(deviceMonth) : undefined,
+      deviceWeek: deviceWeek ? parseInt(deviceWeek) : undefined,
       devicePower: devicePower || undefined,
       technicianId: technicianId || undefined,
       estimatedDate: completedAt || undefined,
@@ -553,10 +553,10 @@ export function ServiceReportPDFForm({ personnel }: Props) {
           </LabelVal>
           <LabelVal label="Üretim Tarihi:" className="flex-1 border-r border-gray-300">
             <div className="flex gap-1">
-              <select value={deviceMonth} onChange={(e) => setDeviceMonth(e.target.value)} className={`${inp} w-20`}>
-                <option value="">Ay</option>
-                {["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"].map((m, i) => (
-                  <option key={i+1} value={String(i+1)}>{m}</option>
+              <select value={deviceWeek} onChange={(e) => setDeviceWeek(e.target.value)} className={`${inp} w-20`}>
+                <option value="">Hafta</option>
+                {Array.from({ length: 53 }, (_, i) => i + 1).map((w) => (
+                  <option key={w} value={String(w)}>{w}. Hafta</option>
                 ))}
               </select>
               <select value={deviceYear} onChange={(e) => setDeviceYear(e.target.value)} className={`${inp} flex-1`}>

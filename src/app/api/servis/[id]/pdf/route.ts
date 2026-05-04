@@ -48,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     techSignerRole: report.techSignerRole ?? null,
     custSignerName: report.custSignerName ?? null,
     custSignerRole: report.custSignerRole ?? null,
-    deviceMonth: report.deviceMonth ?? null,
+    deviceWeek: report.deviceWeek ?? null,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

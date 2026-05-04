@@ -40,7 +40,7 @@ export async function getAppSession(): Promise<AuthSession | null> {
     let permissions = decoded.permissions as string[] | undefined;
     if (permissions === undefined) {
       if (isAdmin) {
-        permissions = ["dashboard","servis","musteriler","muhasebe","stok","bordro","devamsizlik","vergiler","personel","pozisyonlar"];
+        permissions = ["dashboard","servis","musteriler","muhasebe","stok","bordro","devamsizlik","vergiler","personel","pozisyonlar","teklifler"];
       } else {
         try {
           const personnel = await prisma.personnel.findFirst({
