@@ -20,6 +20,7 @@ interface EcommerceProduct {
   slug: string;
   price: number;
   stock: number;
+  currency: string;
   brand: string | null;
 }
 
@@ -84,8 +85,9 @@ export async function POST() {
         await prisma.product.update({
           where: { id: existing.id },
           data: {
-            price: ep.price,
-            stock: ep.stock,
+            price:    ep.price,
+            stock:    ep.stock,
+            currency: ep.currency ?? "TRY",
           },
         });
         updated++;
@@ -97,9 +99,10 @@ export async function POST() {
 
         await prisma.product.create({
           data: {
-            sku:   ep.sku,
-            price: ep.price,
-            stock: ep.stock,
+            sku:      ep.sku,
+            price:    ep.price,
+            stock:    ep.stock,
+            currency: ep.currency ?? "TRY",
             translations: {
               create: {
                 locale: "tr",
