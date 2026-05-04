@@ -81,13 +81,64 @@ export default async function DashboardPage() {
       orderBy: { nextDate: "asc" },
       take: 8,
     }),
-    // Yaklaşan vergi ödeme tarihleri
+    // Yaklaşan vergi ödeme tarihleri (DB kayıtlı)
     prisma.taxRecord.findMany({
       where: { status: { not: "PAID" }, dueDate: { gte: now, lte: thirtyDaysLater } },
       orderBy: { dueDate: "asc" },
       take: 8,
     }),
   ]);
+
+  // ─── Takvim bazlı vergi uyarıları (kayıt olmasa bile göster) ──────────────
+  // Her ayın 23'ü → SGK + Muhtasar (önceki ay için)
+  // Her ayın 26'sı → KDV (önceki ay için)
+  // Mart/Haz/Eyl/Ara 17 → Geçici Vergi
+  type TaxAlert = {
+    type: string; label: string; dueDate: Date; month: number; year: number;
+    hasRecord: boolean; netTax?: number;
+  };
+
+  const calendarAlerts: TaxAlert[] = [];
+
+  // Sonraki 30 gün içindeki takvim tarihlerini hesapla
+  function addIfInRange(type: string, label: string, due: Date, month: number, year: number) {
+    if (due >= now && due <= thirtyDaysLater) {
+      const rec = upcomingTaxes.find(
+        (t) => t.type === type && t.month === month && t.year === year
+      );
+      calendarAlerts.push({ type, label, dueDate: due, month, year, hasRecord: !!rec, netTax: rec ? Number(rec.netTax) : undefined });
+    }
+  }
+
+  // Bu ay ve önümüzdeki ay için kontrol et
+  for (let offset = -1; offset <= 1; offset++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1; // 1-12, bu ayın due tarihi önceki ay için
+
+    // SGK & Muhtasar: ayın 23'ü
+    addIfInRange("SGK_PRIM",  "SGK Primi",          new Date(y, m - 1, 23), m === 1 ? 12 : m - 1, m === 1 ? y - 1 : y);
+    addIfInRange("MUHTASAR",  "Muhtasar Beyanname", new Date(y, m - 1, 23), m === 1 ? 12 : m - 1, m === 1 ? y - 1 : y);
+    // KDV: ayın 26'sı
+    addIfInRange("KDV_BEYANNAME", "KDV Beyannamesi", new Date(y, m - 1, 26), m === 1 ? 12 : m - 1, m === 1 ? y - 1 : y);
+  }
+
+  // Geçici vergi tarihleri (Mart/Haz/Eyl/Ara 17)
+  const geciciMonths = [3, 6, 9, 12];
+  for (const gm of geciciMonths) {
+    const due = new Date(now.getFullYear(), gm - 1, 17);
+    if (due >= now && due <= thirtyDaysLater) {
+      const q = gm === 3 ? 1 : gm === 6 ? 2 : gm === 9 ? 3 : 4;
+      const rec = upcomingTaxes.find((t) => t.type === "GECICI_VERGI" && t.year === now.getFullYear());
+      calendarAlerts.push({ type: "GECICI_VERGI", label: `Geçici Vergi (${q}.Çeyrek)`, dueDate: due, month: gm, year: now.getFullYear(), hasRecord: !!rec, netTax: rec ? Number(rec.netTax) : undefined });
+    }
+  }
+
+  // Sırala + tekrarsız (dueDate bazlı)
+  const seenAlertKeys = new Set<string>();
+  const uniqueAlerts = calendarAlerts
+    .filter((a) => { const k = `${a.type}-${a.month}-${a.year}`; if (seenAlertKeys.has(k)) return false; seenAlertKeys.add(k); return true; })
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 
   // Teknisyen isimlerini çek
   const techIds = topTechniciansRaw.map((r) => r.technicianId).filter(Boolean) as string[];
@@ -276,22 +327,28 @@ export default async function DashboardPage() {
               <h2 className="font-semibold text-gray-800 text-sm">Yaklaşan Vergi Son Tarihleri</h2>
               <span className="ml-auto text-xs text-gray-400">30 gün</span>
             </div>
-            {upcomingTaxes.length === 0 ? (
+            {uniqueAlerts.length === 0 ? (
               <p className="py-8 text-center text-xs text-gray-400">Yaklaşan vergi yok</p>
             ) : (
               <div className="divide-y divide-gray-50">
-                {upcomingTaxes.map((t) => {
-                  const days = daysUntil(t.dueDate);
+                {uniqueAlerts.map((t) => {
+                  const days   = Math.ceil((t.dueDate.getTime() - now.getTime()) / 86400000);
                   const urgent = days <= 7;
                   return (
-                    <div key={t.id} className={`flex items-center gap-3 px-5 py-3 ${urgent ? "bg-red-50/40" : ""}`}>
+                    <div key={`${t.type}-${t.month}-${t.year}`} className={`flex items-center gap-3 px-5 py-3 ${urgent ? "bg-red-50/40" : ""}`}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-gray-800">{TAX_LABELS[t.type] ?? t.type}</p>
-                        <p className="text-xs text-gray-400">{t.month ? `${TR_MONTHS[t.month - 1]} ${t.year}` : String(t.year)}</p>
+                        <p className="text-xs font-semibold text-gray-800">{t.label}</p>
+                        <p className="text-xs text-gray-400">{TR_MONTHS[t.month - 1]} {t.year}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xs font-bold text-gray-800">{fmt(t.netTax as unknown as number)}</p>
-                        <p className={`text-[10px] font-medium ${urgent ? "text-red-600" : "text-orange-500"}`}>{days} gün kaldı</p>
+                        {t.hasRecord && t.netTax !== undefined ? (
+                          <p className="text-xs font-bold text-gray-800">{fmt(t.netTax)}</p>
+                        ) : (
+                          <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Kayıt Yok</span>
+                        )}
+                        <p className={`text-[10px] font-medium mt-0.5 ${urgent ? "text-red-600" : "text-orange-500"}`}>
+                          {days === 0 ? "Bugün!" : `${days} gün kaldı`}
+                        </p>
                       </div>
                     </div>
                   );
