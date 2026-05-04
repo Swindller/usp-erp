@@ -37,13 +37,24 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "asc" },
   });
 
-  // Auto-generate for personnel without payroll this month
   const allPersonnel = await prisma.personnel.findMany({
     where: { isActive: true },
-    include: { user: { select: { firstName: true, lastName: true, email: true } } },
+    select: {
+      id: true,
+      salary: true,
+      user: { select: { firstName: true, lastName: true, email: true } },
+    },
+    orderBy: { createdAt: "asc" },
   });
 
-  return NextResponse.json({ payrolls, allPersonnel, year, month });
+  // Bu ay devamsızlık verilerini de çek (bordro otomatik doldurma için)
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0);
+  const attendances = await prisma.attendance.findMany({
+    where: { date: { gte: startDate, lte: endDate } },
+  });
+
+  return NextResponse.json({ payrolls, allPersonnel, year, month, attendances });
 }
 
 const createSchema = z.object({

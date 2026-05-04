@@ -79,6 +79,7 @@ interface Report {
   deviceModel: string | null;
   deviceSerial: string | null;
   deviceYear: number | null;
+  deviceWeek: number | null;
   devicePower: string | null;
   deviceVoltage: string | null;
   devicePhase: string | null;
@@ -735,7 +736,12 @@ export function ServiceReportDetail({
                 <InfoRow label="Marka / Model" value={[report.deviceBrand, report.deviceModel].filter(Boolean).join(" ")} bold />
               )}
               {report.deviceSerial && <InfoRow label="Seri No" value={<span className="font-mono">{report.deviceSerial}</span>} />}
-              {report.deviceYear && <InfoRow label="Üretim Yılı" value={String(report.deviceYear)} />}
+              {report.deviceYear && (
+                <InfoRow
+                  label="Üretim Tarihi"
+                  value={report.deviceWeek ? `${report.deviceWeek}. Hafta ${report.deviceYear}` : String(report.deviceYear)}
+                />
+              )}
               {report.devicePower && <InfoRow label="Güç" value={report.devicePower} />}
               {report.deviceVoltage && <InfoRow label="Voltaj" value={report.deviceVoltage} />}
               {report.devicePhase && <InfoRow label="Faz" value={report.devicePhase} />}

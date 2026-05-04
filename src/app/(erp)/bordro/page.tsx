@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { DollarSign, ChevronLeft, ChevronRight, Plus, X, CheckCircle, Banknote, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DollarSign, ChevronLeft, ChevronRight, Plus, X, CheckCircle, Banknote, Users, Search, Loader2, Sun } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,7 +9,15 @@ type PayrollStatus = "DRAFT" | "APPROVED" | "PAID";
 
 interface PersonnelRef {
   id: string;
+  salary?: string | number | null;
   user: { firstName: string | null; lastName: string | null; email: string };
+}
+
+interface AttendanceRec {
+  personnelId: string;
+  isAbsent: boolean;
+  absenceReason: string | null;
+  mealCost: string | number | null;
 }
 
 interface Payroll {
@@ -38,6 +46,7 @@ interface Payroll {
 interface BordroData {
   payrolls: Payroll[];
   allPersonnel: PersonnelRef[];
+  attendances: AttendanceRec[];
   year: number;
   month: number;
 }
@@ -48,29 +57,56 @@ const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
 const STATUS_CONFIG: Record<PayrollStatus, { label: string; classes: string }> = {
-  DRAFT: { label: "Taslak", classes: "bg-gray-100 text-gray-600" },
+  DRAFT:    { label: "Taslak",   classes: "bg-gray-100 text-gray-600" },
   APPROVED: { label: "Onaylandı", classes: "bg-blue-100 text-blue-700" },
-  PAID: { label: "Ödendi", classes: "bg-green-100 text-green-700" },
+  PAID:     { label: "Ödendi",   classes: "bg-green-100 text-green-700" },
 };
 
 const fmt = (v: number) =>
   `₺${v.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`;
 
-// ─── Payroll Calculation Helper ────────────────────────────────────────────────
+const toNum = (v: string | number | null | undefined) => Number(v ?? 0);
+
+// Resmi tatiller sabit
+const RESMI_TATILLER_FIXED: string[] = [
+  "01-01","23-04","01-05","19-05","15-07","30-08","29-10",
+];
+function countFixedHolidays(year: number, month: number): number {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month - 1, d).getDay();
+    if (dow === 0 || dow === 6) continue;
+    const key = `${String(d).padStart(2,"0")}-${String(month).padStart(2,"0")}`;
+    if (RESMI_TATILLER_FIXED.includes(key)) count++;
+  }
+  return count;
+}
+function countWorkingDays(year: number, month: number): number {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count - countFixedHolidays(year, month);
+}
+
+// ─── Payroll Calculation ───────────────────────────────────────────────────────
 
 function calcPayroll(base: number, meal: number, transport: number, bonus: number, workedDays: number, absentDays: number) {
   const activeDays = Math.max(0, workedDays - absentDays);
   const dailyBase = workedDays > 0 ? base / workedDays : base;
   const effectiveBase = dailyBase * activeDays;
   const gross = effectiveBase + meal + transport + bonus;
-  const sgi = gross * 0.14;
-  const unemployment = gross * 0.01;
+  const sgi = Math.round(gross * 0.14 * 100) / 100;
+  const unemployment = Math.round(gross * 0.01 * 100) / 100;
   const taxableBase = gross - sgi - unemployment;
-  const incomeTax = taxableBase * 0.15; // simplified bracket
-  const stampTax = gross * 0.00759;
-  const net = gross - sgi - unemployment - incomeTax - stampTax;
-  const sgiEmployer = gross * 0.155;
-  const unemploymentEmployer = gross * 0.02;
+  const incomeTax = Math.round(taxableBase * 0.15 * 100) / 100;
+  const stampTax = Math.round(gross * 0.00759 * 100) / 100;
+  const net = Math.max(0, gross - sgi - unemployment - incomeTax - stampTax);
+  const sgiEmployer = Math.round(gross * 0.155 * 100) / 100;
+  const unemploymentEmployer = Math.round(gross * 0.02 * 100) / 100;
   const employerCost = gross + sgiEmployer + unemploymentEmployer;
   return { gross, sgi, unemployment, incomeTax, stampTax, net, employerCost };
 }
@@ -83,6 +119,7 @@ const defaultForm = {
   otherBonus: "",
   workedDays: "30",
   absentDays: "0",
+  holidays: "0",
   notes: "",
 };
 
@@ -99,6 +136,11 @@ export default function BordroPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Personel arama
+  const [search, setSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -106,18 +148,26 @@ export default function BordroPage() {
       const json = await res.json();
       if (!res.ok || !json.payrolls) { setLoading(false); return; }
       setData(json);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [year, month]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Click outside dropdown
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const prevMonth = () => {
     if (month === 1) { setMonth(12); setYear((y) => y - 1); }
     else setMonth((m) => m - 1);
   };
-
   const nextMonth = () => {
     if (month === 12) { setMonth(1); setYear((y) => y + 1); }
     else setMonth((m) => m + 1);
@@ -133,7 +183,6 @@ export default function BordroPage() {
     }), { grossTotal: 0, netTotal: 0, employerTotal: 0, sgiTotal: 0 });
   }, [data]);
 
-  // Live calculated preview
   const preview = useMemo(() => {
     const base = Number(form.baseSalary) || 0;
     const meal = Number(form.mealAllowance) || 0;
@@ -144,6 +193,61 @@ export default function BordroPage() {
     if (base <= 0) return null;
     return calcPayroll(base, meal, transport, bonus, worked, absent);
   }, [form]);
+
+  const personnelName = (p: PersonnelRef) =>
+    [p.user.firstName, p.user.lastName].filter(Boolean).join(" ") || p.user.email;
+
+  // Personel seçilince otomatik doldur
+  const selectPersonnel = (p: PersonnelRef) => {
+    if (!data) return;
+
+    const workingDays = countWorkingDays(year, month);
+    const fixedHolidays = countFixedHolidays(year, month);
+
+    // Bu personele ait bu aya ait devamsızlık kayıtları
+    const recs = data.attendances.filter((a) => a.personnelId === p.id);
+    const absentDays = recs.filter((a) => a.isAbsent && a.absenceReason !== "HOLIDAY").length;
+    const manualHolidays = recs.filter((a) => a.absenceReason === "HOLIDAY").length;
+    const totalHolidays = fixedHolidays + manualHolidays;
+    // Yemek toplamı
+    const mealTotal = recs
+      .filter((a) => !a.isAbsent && a.absenceReason !== "HOLIDAY")
+      .reduce((s, a) => s + toNum(a.mealCost), 0);
+
+    // Temel maaş: personnel.salary veya mevcut değer
+    const baseSalary = p.salary ? String(Math.round(toNum(p.salary))) : form.baseSalary;
+
+    setForm((f) => ({
+      ...f,
+      personnelId: p.id,
+      baseSalary,
+      mealAllowance: mealTotal > 0 ? String(Math.round(mealTotal * 100) / 100) : f.mealAllowance,
+      workedDays: String(workingDays),
+      absentDays: String(absentDays),
+      holidays: String(totalHolidays),
+    }));
+
+    // Seçilen personel adını search'e yaz
+    setSearch(personnelName(p));
+    setShowDropdown(false);
+  };
+
+  const filteredPersonnel = useMemo(() => {
+    if (!data) return [];
+    const q = search.toLowerCase().trim();
+    if (!q) return data.allPersonnel;
+    return data.allPersonnel.filter((p) =>
+      personnelName(p).toLowerCase().includes(q) || p.user.email.toLowerCase().includes(q)
+    );
+  }, [data, search]);
+
+  const openModal = () => {
+    const workingDays = countWorkingDays(year, month);
+    setForm({ ...defaultForm, workedDays: String(workingDays) });
+    setSearch("");
+    setError("");
+    setShowModal(true);
+  };
 
   const handleSave = async () => {
     if (!form.personnelId) { setError("Personel seçiniz."); return; }
@@ -156,8 +260,7 @@ export default function BordroPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           personnelId: form.personnelId,
-          year,
-          month,
+          year, month,
           baseSalary: Number(form.baseSalary),
           mealAllowance: Number(form.mealAllowance) || 0,
           transportAllowance: Number(form.transportAllowance) || 0,
@@ -183,8 +286,8 @@ export default function BordroPage() {
     load();
   };
 
-  const personnelName = (p: PersonnelRef) =>
-    [p.user.firstName, p.user.lastName].filter(Boolean).join(" ") || p.user.email;
+  // Resmi tatil özeti
+  const fixedHolidayCount = countFixedHolidays(year, month);
 
   return (
     <div className="space-y-6">
@@ -197,7 +300,6 @@ export default function BordroPage() {
           <p className="text-sm text-gray-500 mt-1">Maaş hesaplama ve onay süreci</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Month selector */}
           <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl px-2 py-1.5">
             <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
               <ChevronLeft size={16} className="text-gray-600" />
@@ -210,7 +312,7 @@ export default function BordroPage() {
             </button>
           </div>
           <button
-            onClick={() => { setForm({ ...defaultForm }); setError(""); setShowModal(true); }}
+            onClick={openModal}
             className="flex items-center gap-2 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
             <Plus size={16} />Bordro Oluştur
@@ -218,13 +320,22 @@ export default function BordroPage() {
         </div>
       </div>
 
+      {/* Resmi tatil bilgi bandı */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex items-center gap-3 text-sm">
+        <Sun size={15} className="text-yellow-500 flex-shrink-0" />
+        <span className="text-yellow-800">
+          <strong>{MONTHS[month - 1]} {year}</strong> — {fixedHolidayCount} sabit resmi tatil,{" "}
+          <strong>{countWorkingDays(year, month)}</strong> çalışma günü
+        </span>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Toplam Brüt", value: fmt(stats.grossTotal), icon: <DollarSign size={18} />, color: "bg-blue-100 text-blue-600" },
-          { label: "Toplam Net", value: fmt(stats.netTotal), icon: <Banknote size={18} />, color: "bg-green-100 text-green-600" },
-          { label: "İşveren Maliyeti", value: fmt(stats.employerTotal), icon: <Users size={18} />, color: "bg-purple-100 text-purple-600" },
-          { label: "SGK (İşveren)", value: fmt(stats.sgiTotal), icon: <CheckCircle size={18} />, color: "bg-orange-100 text-orange-600" },
+          { label: "Toplam Brüt",    value: fmt(stats.grossTotal),    icon: <DollarSign size={18} />, color: "bg-blue-100 text-blue-600" },
+          { label: "Toplam Net",     value: fmt(stats.netTotal),      icon: <Banknote size={18} />,  color: "bg-green-100 text-green-600" },
+          { label: "İşveren Maliyeti", value: fmt(stats.employerTotal), icon: <Users size={18} />,  color: "bg-purple-100 text-purple-600" },
+          { label: "SGK (İşveren)",  value: fmt(stats.sgiTotal),      icon: <CheckCircle size={18} />, color: "bg-orange-100 text-orange-600" },
         ].map((card) => (
           <div key={card.label} className="rounded-2xl bg-white p-4 border border-gray-200">
             <div className="flex items-center gap-2 mb-2">
@@ -284,18 +395,14 @@ export default function BordroPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-center gap-2">
                         {p.status === "DRAFT" && (
-                          <button
-                            onClick={() => handleStatus(p.id, "APPROVED")}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-medium transition-colors"
-                          >
+                          <button onClick={() => handleStatus(p.id, "APPROVED")}
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-medium transition-colors">
                             Onayla
                           </button>
                         )}
                         {p.status === "APPROVED" && (
-                          <button
-                            onClick={() => handleStatus(p.id, "PAID")}
-                            className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 text-xs font-medium transition-colors"
-                          >
+                          <button onClick={() => handleStatus(p.id, "PAID")}
+                            className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 text-xs font-medium transition-colors">
                             Ödendi
                           </button>
                         )}
@@ -329,18 +436,58 @@ export default function BordroPage() {
                 <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">{error}</div>
               )}
 
+              {/* Personel Arama */}
               <div>
                 <label className="text-xs font-medium text-gray-600 block mb-1">Personel *</label>
-                <select
-                  value={form.personnelId}
-                  onChange={(e) => setForm((f) => ({ ...f, personnelId: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                >
-                  <option value="">Personel seçin...</option>
-                  {data?.allPersonnel.map((p) => (
-                    <option key={p.id} value={p.id}>{personnelName(p)}</option>
-                  ))}
-                </select>
+                <div className="relative" ref={searchRef}>
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); if (!e.target.value) setForm((f) => ({ ...f, personnelId: "" })); }}
+                    onFocus={() => setShowDropdown(true)}
+                    placeholder="Personel adı veya e-posta ile ara..."
+                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  {form.personnelId && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                      <CheckCircle size={14} />
+                    </span>
+                  )}
+                  {showDropdown && filteredPersonnel.length > 0 && (
+                    <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                      {filteredPersonnel.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selectPersonnel(p)}
+                          className={`w-full flex items-center justify-between px-4 py-2.5 hover:bg-blue-50 text-left transition-colors ${form.personnelId === p.id ? "bg-blue-50" : ""}`}
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-gray-800">{personnelName(p)}</div>
+                            <div className="text-xs text-gray-400">{p.user.email}</div>
+                          </div>
+                          {p.salary && (
+                            <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                              {fmt(toNum(p.salary))}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {form.personnelId && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ Seçildi — devamsızlık ve yemek verileri otomatik dolduruldu
+                  </p>
+                )}
+              </div>
+
+              {/* Resmi tatil bilgisi */}
+              <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 text-xs text-yellow-800">
+                <Sun size={13} className="text-yellow-500 flex-shrink-0" />
+                <span>Bu ay <strong>{countFixedHolidays(year, month)}</strong> sabit resmi tatil,{" "}
+                  <strong>{countWorkingDays(year, month)}</strong> çalışma günü</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -355,6 +502,9 @@ export default function BordroPage() {
                   <input type="number" min="0" step="0.01" value={form.mealAllowance}
                     onChange={(e) => setForm((f) => ({ ...f, mealAllowance: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                  {form.personnelId && form.mealAllowance && (
+                    <p className="text-[10px] text-blue-600 mt-0.5">Devamsızlık kaydından alındı</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1">Ulaşım Yardımı (₺)</label>
@@ -379,6 +529,9 @@ export default function BordroPage() {
                   <input type="number" min="0" max="31" value={form.absentDays}
                     onChange={(e) => setForm((f) => ({ ...f, absentDays: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                  {form.personnelId && (
+                    <p className="text-[10px] text-blue-600 mt-0.5">Devamsızlık kaydından alındı</p>
+                  )}
                 </div>
               </div>
 
@@ -397,8 +550,9 @@ export default function BordroPage() {
                       { label: "Brüt Maaş", value: fmt(preview.gross) },
                       { label: "SGK İşçi (%14)", value: fmt(preview.sgi) },
                       { label: "İşsizlik (%1)", value: fmt(preview.unemployment) },
-                      { label: "Gelir Vergisi", value: fmt(preview.incomeTax) },
+                      { label: "Gelir Vergisi (%15)", value: fmt(preview.incomeTax) },
                       { label: "Damga Vergisi", value: fmt(preview.stampTax) },
+                      { label: "İşveren Maliyeti", value: fmt(preview.employerCost) },
                     ].map((row) => (
                       <div key={row.label} className="flex justify-between">
                         <span className="text-blue-700">{row.label}</span>
@@ -414,10 +568,13 @@ export default function BordroPage() {
               )}
             </div>
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+              <button onClick={() => setShowModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
                 İptal
               </button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving && <Loader2 size={14} className="animate-spin" />}
                 {saving ? "Kaydediliyor..." : "Bordro Oluştur"}
               </button>
             </div>
