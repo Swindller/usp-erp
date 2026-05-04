@@ -19,6 +19,7 @@ interface Product {
   sku: string | null;
   stock: number;
   price: number;
+  currency: string;
   brand: Brand | null;
 }
 
@@ -64,8 +65,11 @@ const defaultForm = {
   notes: "",
 };
 
-const fmt = (v: number) =>
-  `₺${v.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`;
+const fmtTRY = (v: number) =>
+  `₺${v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtEUR = (v: number) =>
+  `€${v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("tr-TR", {
@@ -88,6 +92,7 @@ export default function StokPage() {
   const [search, setSearch] = useState(q);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string>("");
+  const [eurRate, setEurRate] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -103,6 +108,14 @@ export default function StokPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // EUR kuru yükle
+  useEffect(() => {
+    fetch("/api/doviz")
+      .then((r) => r.json())
+      .then((j) => { if (j.rate) setEurRate(j.rate); })
+      .catch(() => {});
+  }, []);
 
   // Debounced URL update
   useEffect(() => {
@@ -285,7 +298,23 @@ export default function StokPage() {
                     <td className="px-5 py-3.5 text-gray-500 text-xs">{p.brand?.name ?? "—"}</td>
                     <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{p.sku ?? "—"}</td>
                     <td className={`px-5 py-3.5 text-right ${stockColor(p.stock)}`}>{p.stock}</td>
-                    <td className="px-5 py-3.5 text-right text-gray-700">{fmt(p.price)}</td>
+                    <td className="px-5 py-3.5 text-right text-gray-700">
+                      {p.currency === "EUR" ? (
+                        <div className="flex flex-col items-end">
+                          <span className="font-medium">{fmtEUR(p.price)}</span>
+                          {eurRate ? (
+                            <span className="text-xs text-gray-400">
+                              {fmtTRY(p.price * eurRate)}
+                              <span className="ml-1 text-gray-300">@{eurRate.toFixed(2)}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">kur yükleniyor…</span>
+                          )}
+                        </div>
+                      ) : (
+                        fmtTRY(p.price)
+                      )}
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-center gap-2">
                         <button

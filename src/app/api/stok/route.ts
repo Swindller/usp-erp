@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     prisma.product.findMany({
       where,
       select: {
-        id: true, sku: true, stock: true, price: true,
+        id: true, sku: true, stock: true, price: true, currency: true,
         brand: { select: { name: true } },
         translations: { where: { locale: "tr" }, select: { name: true }, take: 1 },
       },
